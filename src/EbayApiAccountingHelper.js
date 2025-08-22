@@ -38,6 +38,12 @@ const EbayApiAccountingHelper = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
     const state = urlParams.get("state");
+    const error = urlParams.get("error");
+
+    if (error) {
+      setError(`OAuth error: ${error}`);
+      return;
+    }
 
     if (code && state) {
       const ebayState = localStorage.getItem("ebay_oauth_state");
@@ -47,6 +53,8 @@ const EbayApiAccountingHelper = () => {
         handleEbayCallback(code);
       } else if (state === freeAgentState) {
         handleFreeAgentCallback(code);
+      } else {
+        setError("OAuth state mismatch - please try connecting again");
       }
     }
   }, []);
