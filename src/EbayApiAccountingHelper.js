@@ -560,6 +560,13 @@ const EbayApiAccountingHelper = () => {
                   clientId: e.target.value,
                 }));
               }}
+              onInput={(e) => {
+                console.log("FreeAgent Client ID input to:", e.target.value);
+                setFreeAgentConfig((prev) => ({
+                  ...prev,
+                  clientId: e.target.value,
+                }));
+              }}
               placeholder="L7XkhS83nfcJ2MEc1wRBGQ"
             />
           </div>
@@ -582,9 +589,40 @@ const EbayApiAccountingHelper = () => {
                   clientSecret: e.target.value,
                 }));
               }}
+              onInput={(e) => {
+                console.log(
+                  "FreeAgent Client Secret input to:",
+                  e.target.value
+                );
+                setFreeAgentConfig((prev) => ({
+                  ...prev,
+                  clientSecret: e.target.value,
+                }));
+              }}
               placeholder="JuGKlgFAGUBCOwA2y4F_XA"
             />
           </div>
+        </div>
+
+        {/* Quick Fix Button */}
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-sm text-yellow-800 mb-2">
+            <strong>Quick Fix:</strong> If the form inputs aren't working, click
+            this button to set your credentials:
+          </p>
+          <button
+            onClick={() => {
+              setFreeAgentConfig((prev) => ({
+                ...prev,
+                clientId: "L7XkhS83nfcJ2MEc1wRBGQ",
+                clientSecret: "JuGKlgFAGUBCOwA2y4F_XA",
+              }));
+              console.log("FreeAgent credentials set via button");
+            }}
+            className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 text-sm"
+          >
+            Set FreeAgent Credentials
+          </button>
         </div>
 
         <button
