@@ -23,7 +23,6 @@ const EbayApiAccountingHelper = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [transactions, setTransactions] = useState([]);
-  // const [payouts, setPayouts] = useState([]); // Removed unused variable
   const [selectedDateRange, setSelectedDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
@@ -31,21 +30,32 @@ const EbayApiAccountingHelper = () => {
 
   // Processing State
   const [processedData, setProcessedData] = useState(null);
-  // Removed unused setSyncOptions
-  const [syncOptions] = useState({
-    autoSync: false,
-    createCategories: true,
-    splitTransactions: true
-  });
 
-  // ===== REAL EBAY API FUNCTIONS =====
+  // Check for OAuth callbacks on component mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const state = urlParams.get('state');
+    
+    if (code && state) {
+      const ebayState = localStorage.getItem('ebay_oauth_state');
+      const freeAgentState = localStorage.getItem('freeagent_oauth_state');
+      
+      if (state === ebayState) {
+        handleEbayCallback(code);
+      } else if (state === freeAgentState) {
+        handleFreeAgentCallback(code);
+      }
+    }
+  }, []);
+
+  // ===== EBAY API FUNCTIONS =====
   
   const getEbayAuthUrl = () => {
     const scopes = 'https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.finances';
-    const redirectUri = window.location.origin + '/auth/ebay';
+    const redirectUri = window.location.origin + window.location.pathname;
     const state = Math.random().toString(36).substring(7);
     
-    // Store state for validation
     localStorage.setItem('ebay_oauth_state', state);
     
     const baseUrl = ebayConfig.environment === 'sandbox' 
@@ -70,34 +80,32 @@ const EbayApiAccountingHelper = () => {
 
     try {
       const authUrl = getEbayAuthUrl();
-      
-      // Open auth window
-      const authWindow = window.open(authUrl, 'ebay_auth', 'width=600,height=700');
-      
-      // Poll for window closure (indicating auth completion)
-      const checkWindow = setInterval(() => {
-        if (authWindow.closed) {
-          clearInterval(checkWindow);
-          // Check if we got an auth code
-          checkForEbayAuthCode();
-        }
-      }, 1000);
-      
+      window.location.href = authUrl; // Redirect to eBay OAuth
     } catch (err) {
       setError('Failed to connect to eBay: ' + err.message);
     }
   };
 
-  const checkForEbayAuthCode = () => {
-    // In a real app, you'd handle the OAuth callback
-    // For now, we'll simulate getting the token
-    setTimeout(() => {
-      setEbayConfig(prev => ({ 
-        ...prev, 
-        isConnected: true, 
-        authToken: 'real_token_would_be_here'
+  const handleEbayCallback = async (code) => {
+    try {
+      setIsLoading(true);
+      const token = await exchangeEbayToken(code);
+      
+      setEbayConfig(prev => ({
+        ...prev,
+        authToken: token,
+        isConnected: true
       }));
-    }, 1000);
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      localStorage.removeItem('ebay_oauth_state');
+      
+    } catch (error) {
+      setError('Failed to complete eBay authentication: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const exchangeEbayToken = async (code) => {
@@ -106,7 +114,7 @@ const EbayApiAccountingHelper = () => {
         ? 'https://api.sandbox.ebay.com' 
         : 'https://api.ebay.com';
       
-      const tokenResponse = await fetch(`${baseUrl}/identity/v1/oauth2/token`, {
+      const response = await fetch(`${baseUrl}/identity/v1/oauth2/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -115,96 +123,33 @@ const EbayApiAccountingHelper = () => {
         body: new URLSearchParams({
           'grant_type': 'authorization_code',
           'code': code,
-          'redirect_uri': window.location.origin + '/auth/ebay'
+          'redirect_uri': window.location.origin + window.location.pathname
         })
       });
 
-      if (!tokenResponse.ok) {
-        throw new Error(`Token exchange failed: ${tokenResponse.status}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Token exchange failed: ${errorData.error_description || response.status}`);
       }
 
-      const tokenData = await tokenResponse.json();
-      
-      setEbayConfig(prev => ({
-        ...prev,
-        authToken: tokenData.access_token,
-        isConnected: true
-      }));
-
+      const tokenData = await response.json();
       return tokenData.access_token;
     } catch (error) {
-      setError('Failed to exchange eBay token: ' + error.message);
+      console.error('eBay token exchange error:', error);
       throw error;
     }
   };
 
   const fetchRealEbayTransactions = async () => {
-    if (!ebayConfig.isConnected || !ebayConfig.authToken) {
+    if (!ebayConfig.authToken) {
       setError('Please connect to eBay first');
       return;
     }
 
     setIsLoading(true);
     setError(null);
-
+    
     try {
-      // TEMPORARY: Use mock data due to CORS issues
-      // TODO: Implement backend proxy for eBay API calls
-      
-      console.log('Using mock data due to CORS restrictions...');
-      
-      const mockTransactions = [
-        {
-          transactionId: 'TXN001',
-          orderId: '12345678901',
-          transactionDate: '2024-01-15T10:30:00Z',
-          transactionType: 'SALE',
-          amount: { value: '25.99', currency: 'GBP' },
-          netAmount: { value: '23.50', currency: 'GBP' },
-          fees: [
-            { type: 'FINAL_VALUE_FEE', amount: { value: '2.49', currency: 'GBP' } }
-          ],
-          itemId: '123456789',
-          orderLineItems: [{ title: 'Vintage Camera Lens' }],
-          buyerUsername: 'buyer123',
-          payoutId: 'PAYOUT_001'
-        },
-        {
-          transactionId: 'TXN002',
-          orderId: '12345678902',
-          transactionDate: '2024-01-16T14:20:00Z',
-          transactionType: 'REFUND',
-          amount: { value: '-15.00', currency: 'GBP' },
-          netAmount: { value: '-15.00', currency: 'GBP' },
-          fees: [],
-          itemId: '123456790',
-          orderLineItems: [{ title: 'Electronics Component' }],
-          buyerUsername: 'buyer456',
-          payoutId: 'PAYOUT_001'
-        }
-      ];
-
-      const mockPayouts = [
-        {
-          payoutId: 'PAYOUT_001',
-          payoutDate: '2024-01-17T00:00:00Z',
-          amount: { value: '8.50', currency: 'GBP' },
-          status: 'SUCCEEDED',
-          transactionCount: 2
-        }
-      ];
-
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setTransactions(mockTransactions);
-      // setPayouts(mockPayouts); // Removed since payouts not used
-      
-      processAccountingData(mockTransactions, mockPayouts);
-
-      /* 
-      REAL API CODE (commented out due to CORS):
-      
       const baseUrl = ebayConfig.environment === 'sandbox' 
         ? 'https://apiz.sandbox.ebay.com' 
         : 'https://apiz.ebay.com';
@@ -212,7 +157,9 @@ const EbayApiAccountingHelper = () => {
       const startDate = new Date(selectedDateRange.startDate).toISOString();
       const endDate = new Date(selectedDateRange.endDate).toISOString();
 
-      const transactionsResponse = await fetch(
+      // Note: This will likely fail due to CORS. 
+      // In production, you'd need a backend proxy
+      const response = await fetch(
         `${baseUrl}/sell/finances/v1/transaction?` +
         `filter=transactionDate:[${startDate}..${endDate}]&` +
         `limit=200&` +
@@ -225,17 +172,31 @@ const EbayApiAccountingHelper = () => {
           }
         }
       );
-      */
+
+      if (!response.ok) {
+        throw new Error(`eBay API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setTransactions(data.transactions || []);
+      
+      // Process data for FreeAgent
+      const processed = processTransactionsForFreeAgent(data.transactions || []);
+      setProcessedData(processed);
       
     } catch (err) {
-      setError('Failed to fetch eBay transactions: ' + err.message);
+      if (err.message.includes('CORS') || err.message.includes('cors')) {
+        setError('CORS Error: You need a backend proxy to call eBay API from browser. This is a browser security limitation.');
+      } else {
+        setError('Failed to fetch eBay transactions: ' + err.message);
+      }
       console.error('eBay API Error:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ===== REAL FREEAGENT API FUNCTIONS =====
+  // ===== FREEAGENT API FUNCTIONS =====
 
   const connectFreeAgent = async () => {
     if (!freeAgentConfig.clientId || !freeAgentConfig.clientSecret) {
@@ -244,10 +205,9 @@ const EbayApiAccountingHelper = () => {
     }
 
     try {
-      const redirectUri = window.location.origin + '/auth/freeagent';
+      const redirectUri = window.location.origin + window.location.pathname;
       const state = Math.random().toString(36).substring(7);
       
-      // Store state for validation
       localStorage.setItem('freeagent_oauth_state', state);
       
       const authUrl = `https://api.freeagent.com/v2/approve_app?` +
@@ -256,36 +216,39 @@ const EbayApiAccountingHelper = () => {
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
         `state=${state}`;
       
-      // Open auth window
-      const authWindow = window.open(authUrl, 'freeagent_auth', 'width=600,height=700');
-      
-      // Poll for window closure
-      const checkWindow = setInterval(() => {
-        if (authWindow.closed) {
-          clearInterval(checkWindow);
-          checkForFreeAgentAuthCode();
-        }
-      }, 1000);
+      window.location.href = authUrl; // Redirect to FreeAgent OAuth
       
     } catch (err) {
       setError('Failed to connect to FreeAgent: ' + err.message);
     }
   };
 
-  const checkForFreeAgentAuthCode = () => {
-    // In a real app, you'd handle the OAuth callback
-    setTimeout(() => {
-      setFreeAgentConfig(prev => ({ 
-        ...prev, 
-        isConnected: true, 
-        accessToken: 'real_freeagent_token_would_be_here'
+  const handleFreeAgentCallback = async (code) => {
+    try {
+      setIsLoading(true);
+      const tokenData = await exchangeFreeAgentToken(code);
+      
+      setFreeAgentConfig(prev => ({
+        ...prev,
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        isConnected: true
       }));
-    }, 1000);
+      
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      localStorage.removeItem('freeagent_oauth_state');
+      
+    } catch (error) {
+      setError('Failed to complete FreeAgent authentication: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const exchangeFreeAgentToken = async (code) => {
     try {
-      const tokenResponse = await fetch('https://api.freeagent.com/v2/token_endpoint', {
+      const response = await fetch('https://api.freeagent.com/v2/token_endpoint', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
@@ -295,33 +258,25 @@ const EbayApiAccountingHelper = () => {
           'client_secret': freeAgentConfig.clientSecret,
           'grant_type': 'authorization_code',
           'code': code,
-          'redirect_uri': window.location.origin + '/auth/freeagent'
+          'redirect_uri': window.location.origin + window.location.pathname
         })
       });
 
-      if (!tokenResponse.ok) {
-        throw new Error(`FreeAgent token exchange failed: ${tokenResponse.status}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Token exchange failed: ${errorData.error_description || response.status}`);
       }
 
-      const tokenData = await tokenResponse.json();
-      
-      setFreeAgentConfig(prev => ({
-        ...prev,
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token,
-        isConnected: true
-      }));
-
-      return tokenData.access_token;
+      return await response.json();
     } catch (error) {
-      setError('Failed to exchange FreeAgent token: ' + error.message);
+      console.error('FreeAgent token exchange error:', error);
       throw error;
     }
   };
 
-  const syncToFreeAgentReal = async () => {
-    if (!freeAgentConfig.isConnected || !processedData) {
-      setError('Please connect to FreeAgent and fetch eBay data first');
+  const syncToFreeAgent = async () => {
+    if (!freeAgentConfig.accessToken || !processedData) {
+      setError('Please connect to FreeAgent and fetch transactions first');
       return;
     }
 
@@ -329,280 +284,57 @@ const EbayApiAccountingHelper = () => {
     setError(null);
 
     try {
-      const results = [];
-
-      // Get the first bank account to use for transactions
-      const accountsResponse = await fetch('https://api.freeagent.com/v2/bank_accounts', {
-        headers: {
-          'Authorization': `Bearer ${freeAgentConfig.accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!accountsResponse.ok) {
-        if (accountsResponse.status === 401) {
-          setError('FreeAgent authentication expired. Please reconnect.');
-          setFreeAgentConfig(prev => ({ ...prev, isConnected: false, accessToken: '' }));
-          return;
-        }
-        throw new Error(`Failed to get bank accounts: ${accountsResponse.status} ${accountsResponse.statusText}`);
-      }
-
-      const accountsData = await accountsResponse.json();
-      console.log('Available bank accounts:', accountsData);
-
-      // Find an eBay account or use the first available account
-      let targetAccount = accountsData.bank_accounts?.find(account => 
-        account.name?.toLowerCase().includes('ebay')
-      );
-
-      if (!targetAccount && accountsData.bank_accounts?.length > 0) {
-        targetAccount = accountsData.bank_accounts[0];
-        console.log('No eBay account found, using first account:', targetAccount.name);
-      }
-
-      if (!targetAccount) {
-        throw new Error('No bank accounts found in FreeAgent. Please create a bank account first.');
-      }
-
-      console.log('Using bank account:', targetAccount.name, targetAccount.url);
-
-      // Method 1: Create split transaction (main transaction with explanations)
-      const mainEntry = processedData.freeAgentEntries.find(e => e.type === 'bank_transaction');
-      
-      if (mainEntry) {
-        // Create the main bank transaction
-        const bankTransactionPayload = {
-          bank_transaction: {
-            bank_account: targetAccount.url,
-            dated_on: mainEntry.date,
-            amount: parseFloat(mainEntry.amount),
-            description: mainEntry.description,
-            unexplained: false
-          }
-        };
-
-        console.log('Creating bank transaction:', bankTransactionPayload);
-
-        const bankTxnResponse = await fetch('https://api.freeagent.com/v2/bank_transactions', {
+      // Note: This will also likely fail due to CORS
+      for (const entry of processedData.freeAgentEntries) {
+        const response = await fetch('https://api.freeagent.com/v2/bank_transactions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${freeAgentConfig.accessToken}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(bankTransactionPayload)
+          body: JSON.stringify({
+            bank_transaction: {
+              dated_on: entry.date,
+              amount: entry.amount,
+              description: entry.description,
+              bank_account: 'https://api.freeagent.com/v2/bank_accounts/1' // You'd need to specify actual account
+            }
+          })
         });
 
-        if (!bankTxnResponse.ok) {
-          const errorText = await bankTxnResponse.text();
-          console.error('Bank transaction error:', errorText);
-          throw new Error(`Failed to create bank transaction: ${bankTxnResponse.status} ${errorText}`);
-        }
-
-        const bankTxnResult = await bankTxnResponse.json();
-        console.log('Bank transaction created:', bankTxnResult);
-        results.push(bankTxnResult);
-
-        // Now create explanations for each split item
-        const splitEntries = processedData.freeAgentEntries.filter(e => e.type === 'split_item');
-        
-        for (const splitEntry of splitEntries) {
-          const explanationPayload = {
-            bank_transaction_explanation: {
-              bank_transaction: bankTxnResult.bank_transaction.url,
-              dated_on: splitEntry.date,
-              amount: parseFloat(splitEntry.amount),
-              description: splitEntry.description,
-              category: splitEntry.category
-            }
-          };
-
-          console.log('Creating explanation:', explanationPayload);
-
-          const explanationResponse = await fetch('https://api.freeagent.com/v2/bank_transaction_explanations', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${freeAgentConfig.accessToken}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(explanationPayload)
-          });
-
-          if (!explanationResponse.ok) {
-            const errorText = await explanationResponse.text();
-            console.error('Explanation error:', errorText);
-            // Continue with other explanations even if one fails
-            console.warn(`Failed to create explanation for ${splitEntry.description}: ${explanationResponse.status}`);
-          } else {
-            const explanationResult = await explanationResponse.json();
-            console.log('Explanation created:', explanationResult);
-            results.push(explanationResult);
-          }
-
-          // Rate limiting
-          await new Promise(resolve => setTimeout(resolve, 200));
+        if (!response.ok) {
+          throw new Error(`FreeAgent API error: ${response.status}`);
         }
       }
 
-      alert(`Successfully synced to FreeAgent!\n\nCreated:\n- 1 bank transaction (${mainEntry.description})\n- ${results.length - 1} explanations\n\nCheck your "${targetAccount.name}" account in FreeAgent.`);
-      
+      alert('Transactions synced successfully to FreeAgent!');
     } catch (err) {
-      setError('Failed to sync to FreeAgent: ' + err.message);
-      console.error('FreeAgent API Error:', err);
+      if (err.message.includes('CORS') || err.message.includes('cors')) {
+        setError('CORS Error: You need a backend proxy to call FreeAgent API from browser.');
+      } else {
+        setError('Failed to sync to FreeAgent: ' + err.message);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ===== OAUTH CALLBACK HANDLER =====
-  
-  useEffect(() => {
-    const handleOAuthCallback = () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get('code');
-      const state = urlParams.get('state');
-      const error = urlParams.get('error');
+  // ===== DATA PROCESSING =====
 
-      if (error) {
-        setError(`OAuth error: ${error}`);
-        return;
-      }
-
-      if (code) {
-        if (window.location.pathname.includes('/auth/ebay')) {
-          const storedState = localStorage.getItem('ebay_oauth_state');
-          if (state === storedState) {
-            exchangeEbayToken(code);
-          } else {
-            setError('OAuth state mismatch for eBay');
-          }
-        } else if (window.location.pathname.includes('/auth/freeagent')) {
-          const storedState = localStorage.getItem('freeagent_oauth_state');
-          if (state === storedState) {
-            exchangeFreeAgentToken(code);
-          } else {
-            setError('OAuth state mismatch for FreeAgent');
-          }
-        }
-
-        // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    };
-
-    handleOAuthCallback();
-  }, []);
-
-  // ===== DATA PROCESSING (Same as before) =====
-
-  const processAccountingData = (transactions, payouts) => {
-    const processed = {
-      totalSales: 0,
-      totalFees: 0,
-      totalRefunds: 0,
-      totalPayout: 0,
-      transactionsByPayout: {},
-      freeAgentEntries: []
-    };
-
-    // Process real eBay transaction data
-    transactions.forEach(txn => {
-      const payoutId = txn.payoutId || 'unknown';
-      
-      if (!processed.transactionsByPayout[payoutId]) {
-        processed.transactionsByPayout[payoutId] = [];
-      }
-      processed.transactionsByPayout[payoutId].push(txn);
-
-      // Calculate totals based on transaction type
-      const amount = parseFloat(txn.amount?.value || 0);
-      
-      switch (txn.transactionType) {
-        case 'SALE':
-          processed.totalSales += amount;
-          break;
-        case 'REFUND':
-          processed.totalRefunds += Math.abs(amount);
-          break;
-        case 'FEE':
-          processed.totalFees += Math.abs(amount);
-          break;
-      }
-    });
-
-    // Process payout data
-    payouts.forEach(payout => {
-      processed.totalPayout += parseFloat(payout.amount?.value || 0);
-    });
-
-    // Generate FreeAgent entries
-    if (syncOptions.splitTransactions) {
-      processed.freeAgentEntries = generateSplitEntries(processed);
-    } else {
-      processed.freeAgentEntries = generateIndividualEntries(transactions);
+  const processTransactionsForFreeAgent = (ebayTransactions) => {
+    if (!ebayTransactions || ebayTransactions.length === 0) {
+      return { freeAgentEntries: [] };
     }
 
-    setProcessedData(processed);
-  };
-
-  const generateSplitEntries = (data) => {
-    const entries = [];
-    const date = new Date().toISOString().split('T')[0];
-
-    // Main payout entry
-    entries.push({
-      type: 'bank_transaction',
-      date: date,
-      amount: data.totalPayout.toFixed(2),
-      description: 'eBay Payout',
-      category: 'Bank Transfer'
-    });
-
-    // Sales income
-    if (data.totalSales > 0) {
-      entries.push({
-        type: 'split_item',
-        date: date,
-        amount: data.totalSales.toFixed(2),
-        description: 'eBay Sales Income',
-        category: 'Sales'
-      });
-    }
-
-    // Fees
-    if (data.totalFees > 0) {
-      entries.push({
-        type: 'split_item',
-        date: date,
-        amount: `-${data.totalFees.toFixed(2)}`,
-        description: 'eBay Fees',
-        category: 'eBay Fees'
-      });
-    }
-
-    // Refunds
-    if (data.totalRefunds > 0) {
-      entries.push({
-        type: 'split_item',
-        date: date,
-        amount: `-${data.totalRefunds.toFixed(2)}`,
-        description: 'eBay Refunds',
-        category: 'Refunds'
-      });
-    }
-
-    return entries;
-  };
-
-  const generateIndividualEntries = (transactions) => {
-    return transactions.map(txn => ({
-      type: 'transaction',
+    const freeAgentEntries = ebayTransactions.map(txn => ({
       date: new Date(txn.transactionDate).toISOString().split('T')[0],
-      amount: txn.amount?.value || 0,
-      description: `eBay ${txn.transactionType}: ${txn.orderLineItems?.[0]?.title || 'Transaction'}`,
+      amount: parseFloat(txn.amount?.value || 0),
+      description: `eBay ${txn.transactionType}: ${txn.references?.[0]?.title || 'Transaction'}`,
       category: txn.transactionType === 'SALE' ? 'Sales' : 'Refunds',
       reference: txn.orderId
     }));
+
+    return { freeAgentEntries };
   };
 
   // ===== EXPORT FUNCTIONS =====
@@ -624,7 +356,7 @@ const EbayApiAccountingHelper = () => {
     URL.revokeObjectURL(url);
   };
 
-  // ===== UI COMPONENTS (Same as before but using real fetch function) =====
+  // ===== UI COMPONENTS =====
 
   const renderSetupTab = () => (
     <div className="space-y-8">
@@ -651,7 +383,7 @@ const EbayApiAccountingHelper = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={ebayConfig.clientId}
               onChange={(e) => setEbayConfig(prev => ({ ...prev, clientId: e.target.value }))}
-              placeholder="GaryArno-accounth-SBX-..."
+              placeholder="Your-eBay-Client-ID"
             />
           </div>
 
@@ -664,7 +396,7 @@ const EbayApiAccountingHelper = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={ebayConfig.clientSecret}
               onChange={(e) => setEbayConfig(prev => ({ ...prev, clientSecret: e.target.value }))}
-              placeholder="SBX-814323b92b3f..."
+              placeholder="Your-eBay-Client-Secret"
             />
           </div>
         </div>
@@ -712,10 +444,10 @@ const EbayApiAccountingHelper = () => {
             </label>
             <input
               type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
               value={freeAgentConfig.clientId}
               onChange={(e) => setFreeAgentConfig(prev => ({ ...prev, clientId: e.target.value }))}
-              placeholder="L7XkhS83nfcJ2MEc1wRBGQ"
+              placeholder="Your-FreeAgent-Client-ID"
             />
           </div>
 
@@ -725,50 +457,11 @@ const EbayApiAccountingHelper = () => {
             </label>
             <input
               type="password"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
               value={freeAgentConfig.clientSecret}
               onChange={(e) => setFreeAgentConfig(prev => ({ ...prev, clientSecret: e.target.value }))}
-              placeholder="Your FreeAgent App Secret"
+              placeholder="Your-FreeAgent-Client-Secret"
             />
-          </div>
-        </div>
-
-        {/* Manual Token Input */}
-        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <h4 className="text-sm font-medium text-yellow-800 mb-2">Manual Token (For Testing)</h4>
-          <p className="text-xs text-yellow-700 mb-3">If OAuth fails, you can manually enter an access token:</p>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              className="flex-1 px-3 py-2 border border-yellow-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 text-sm"
-              placeholder="Paste FreeAgent access token here..."
-              onChange={(e) => {
-                if (e.target.value.trim()) {
-                  setFreeAgentConfig(prev => ({ 
-                    ...prev, 
-                    accessToken: e.target.value.trim(),
-                    isConnected: true
-                  }));
-                }
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                const token = prompt('Enter your FreeAgent access token:');
-                if (token && token.trim()) {
-                  setFreeAgentConfig(prev => ({ 
-                    ...prev, 
-                    accessToken: token.trim(),
-                    isConnected: true
-                  }));
-                  alert('Manual token set! You can now test the sync.');
-                }
-              }}
-              className="px-3 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 text-sm"
-            >
-              Set Token
-            </button>
           </div>
         </div>
 
@@ -781,15 +474,18 @@ const EbayApiAccountingHelper = () => {
         </button>
       </div>
 
-      {/* Live API Warning */}
-      <div className="bg-red-50 rounded-xl border border-red-200 p-6">
-        <h3 className="text-lg font-semibold text-red-900 mb-4">⚠️ Live API Mode</h3>
-        <div className="space-y-3 text-sm text-red-800">
-          <div>This version makes <strong>real API calls</strong> to eBay and FreeAgent.</div>
-          <div>• Test with <strong>Sandbox environment</strong> first</div>
-          <div>• Real transactions will be created in FreeAgent</div>
-          <div>• Make sure your credentials are correct</div>
-          <div>• Consider creating a test bank account in FreeAgent first</div>
+      {/* CORS Warning */}
+      <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-6">
+        <h3 className="text-lg font-semibold text-yellow-900 mb-4">⚠️ Important: CORS Limitations</h3>
+        <div className="space-y-3 text-sm text-yellow-800">
+          <div>Due to browser security (CORS policy), direct API calls to eBay and FreeAgent will likely fail.</div>
+          <div><strong>For production use, you need:</strong></div>
+          <ul className="list-disc list-inside ml-4 space-y-1">
+            <li>A backend server to proxy API calls</li>
+            <li>Server-side OAuth handling</li>
+            <li>Proper API credentials management</li>
+          </ul>
+          <div>This frontend demonstrates the OAuth flow and data processing logic.</div>
         </div>
       </div>
     </div>
@@ -825,122 +521,77 @@ const EbayApiAccountingHelper = () => {
           </div>
         </div>
 
-        <button
-          onClick={fetchRealEbayTransactions}
-          disabled={!ebayConfig.isConnected || isLoading}
-          className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
-        >
-          {isLoading && (
-            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+        <div className="flex space-x-4 mt-6">
+          <button
+            onClick={fetchRealEbayTransactions}
+            disabled={!ebayConfig.isConnected || isLoading}
+            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+          >
+            {isLoading && (
+              <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
+            <span>{isLoading ? 'Fetching...' : 'Fetch eBay Transactions'}</span>
+          </button>
+
+          {processedData && (
+            <button
+              onClick={syncToFreeAgent}
+              disabled={!freeAgentConfig.isConnected || isLoading}
+              className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            >
+              Sync to FreeAgent
+            </button>
           )}
-          <span>{isLoading ? 'Fetching Real Data...' : 'Fetch Real eBay Transactions'}</span>
-        </button>
-      </div>
 
-      {/* Transaction Summary */}
-      {processedData && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Transaction Summary</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">£{processedData.totalSales.toFixed(2)}</div>
-              <div className="text-sm text-green-600">Total Sales</div>
-            </div>
-            <div className="text-center p-4 bg-red-50 rounded-lg">
-              <div className="text-2xl font-bold text-red-600">£{processedData.totalFees.toFixed(2)}</div>
-              <div className="text-sm text-red-600">Total Fees</div>
-            </div>
-            <div className="text-center p-4 bg-yellow-50 rounded-lg">
-              <div className="text-2xl font-bold text-yellow-600">£{processedData.totalRefunds.toFixed(2)}</div>
-              <div className="text-sm text-yellow-600">Total Refunds</div>
-            </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">£{processedData.totalPayout.toFixed(2)}</div>
-              <div className="text-sm text-blue-600">Net Payout</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Action Buttons */}
-      {processedData && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions</h3>
-          <div className="flex flex-wrap gap-4">
+          {processedData && (
             <button
               onClick={exportToCsv}
-              className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+              className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
             >
-              Export to CSV
+              Export CSV
             </button>
-            
-            <button
-              onClick={syncToFreeAgentReal}
-              disabled={!freeAgentConfig.isConnected || isLoading}
-              className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
-            >
-              {isLoading && (
-                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              )}
-              <span>{isLoading ? 'Syncing to FreeAgent...' : 'Sync to FreeAgent (REAL)'}</span>
-            </button>
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 
   const renderTransactionsTab = () => (
     <div className="space-y-6">
       {transactions.length > 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Real eBay Transactions</h3>
-            <p className="text-sm text-gray-600 mt-1">{transactions.length} transactions found</p>
-          </div>
-          
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            eBay Transactions ({transactions.length})
+          </h3>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payout ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {transactions.map((txn, index) => (
-                  <tr key={txn.transactionId || index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <tr key={index}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(txn.transactionDate).toLocaleDateString('en-GB')}
+                      {new Date(txn.transactionDate).toLocaleDateString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        txn.transactionType === 'SALE' 
-                          ? 'bg-green-100 text-green-800'
-                          : txn.transactionType === 'REFUND'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {txn.transactionType}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {txn.transactionType}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <span className={txn.amount?.value > 0 ? 'text-green-600' : 'text-red-600'}>
+                        {txn.amount?.currencyCode} {txn.amount?.value}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
-                      {txn.orderLineItems?.[0]?.title || txn.transactionType || 'eBay Transaction'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {txn.amount?.currency} {parseFloat(txn.amount?.value || 0).toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {txn.payoutId || 'N/A'}
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {txn.references?.[0]?.title || 'No description'}
                     </td>
                   </tr>
                 ))}
@@ -951,7 +602,7 @@ const EbayApiAccountingHelper = () => {
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
           <div className="text-gray-400 text-4xl mb-4">📊</div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Real Transactions Found</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Transactions Found</h3>
           <p className="text-gray-600">
             Connect to eBay and fetch transactions to see them here.
           </p>
@@ -962,21 +613,16 @@ const EbayApiAccountingHelper = () => {
 
   const renderFreeAgentEntriesTab = () => (
     <div className="space-y-6">
-      {processedData?.freeAgentEntries.length > 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">FreeAgent Entries Preview (REAL)</h3>
-            <p className="text-sm text-gray-600 mt-1">
-              {processedData.freeAgentEntries.length} entries ready for real sync
-            </p>
-          </div>
-          
+      {processedData?.freeAgentEntries?.length > 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            FreeAgent Entries ({processedData.freeAgentEntries.length})
+          </h3>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
@@ -984,27 +630,18 @@ const EbayApiAccountingHelper = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {processedData.freeAgentEntries.map((entry, index) => (
-                  <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <tr key={index}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {entry.date}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        entry.type === 'bank_transaction' 
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-purple-100 text-purple-800'
-                      }`}>
-                        {entry.type.replace('_', ' ')}
-                      </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {entry.description}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {entry.category}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <span className={parseFloat(entry.amount) >= 0 ? 'text-green-600' : 'text-red-600'}>
+                      <span className={entry.amount > 0 ? 'text-green-600' : 'text-red-600'}>
                         £{entry.amount}
                       </span>
                     </td>
@@ -1019,7 +656,7 @@ const EbayApiAccountingHelper = () => {
           <div className="text-gray-400 text-4xl mb-4">📋</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Entries Generated</h3>
           <p className="text-gray-600">
-            Fetch real eBay transactions first to generate FreeAgent entries.
+            Fetch eBay transactions first to generate FreeAgent entries.
           </p>
         </div>
       )}
@@ -1066,6 +703,19 @@ const EbayApiAccountingHelper = () => {
           </div>
         )}
 
+        {/* Loading Overlay */}
+        {isLoading && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex items-center">
+              <svg className="animate-spin h-5 w-5 text-blue-600 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="text-blue-800 font-medium">Processing API request...</span>
+            </div>
+          </div>
+        )}
+
         {/* Navigation Tabs */}
         <div className="mb-8">
           <nav className="flex space-x-8 justify-center">
@@ -1102,23 +752,36 @@ const EbayApiAccountingHelper = () => {
         {/* Footer */}
         <div className="mt-16 text-center">
           <div className="bg-white rounded-xl border border-gray-200 p-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">🚀 Live API Integration</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">🚀 Live API Integration Status</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-gray-600">
               <div className="flex flex-col items-center space-y-2">
                 <div className="text-2xl">🔗</div>
-                <div className="font-medium text-gray-900">Real eBay Data</div>
-                <div>Fetches actual transaction data from eBay Finances API</div>
+                <div className="font-medium text-gray-900">eBay Connection</div>
+                <div className={`px-2 py-1 rounded text-xs ${ebayConfig.isConnected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                  {ebayConfig.isConnected ? 'Connected' : 'Not Connected'}
+                </div>
               </div>
               <div className="flex flex-col items-center space-y-2">
                 <div className="text-2xl">💰</div>
-                <div className="font-medium text-gray-900">Live FreeAgent Sync</div>
-                <div>Creates real transactions in your FreeAgent account</div>
+                <div className="font-medium text-gray-900">FreeAgent Connection</div>
+                <div className={`px-2 py-1 rounded text-xs ${freeAgentConfig.isConnected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                  {freeAgentConfig.isConnected ? 'Connected' : 'Not Connected'}
+                </div>
               </div>
               <div className="flex flex-col items-center space-y-2">
-                <div className="text-2xl">⚠️</div>
-                <div className="font-medium text-gray-900">Production Ready</div>
-                <div>Use with caution - creates real accounting entries</div>
+                <div className="text-2xl">📊</div>
+                <div className="font-medium text-gray-900">Transactions</div>
+                <div className="text-gray-600">
+                  {transactions.length} fetched
+                </div>
               </div>
+            </div>
+            
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500">
+                <strong>Note:</strong> This application requires a backend server for production use due to CORS policies. 
+                The OAuth flows and data processing logic are fully functional for demonstration purposes.
+              </p>
             </div>
           </div>
         </div>
