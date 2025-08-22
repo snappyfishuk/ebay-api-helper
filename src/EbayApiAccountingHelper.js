@@ -290,16 +290,32 @@ const EbayApiAccountingHelper = () => {
         }
       );
 
+      // Log the response for debugging
+      console.log("FreeAgent token response status:", response.status);
+      console.log("FreeAgent token response headers:", response.headers);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          `Token exchange failed: ${
-            errorData.error_description || response.status
-          }`
-        );
+        // Try to get error details
+        const contentType = response.headers.get("content-type");
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
+        if (contentType && contentType.includes("application/json")) {
+          const errorData = await response.json();
+          errorMessage =
+            errorData.error_description || errorData.error || errorMessage;
+        } else {
+          // If it's HTML, just show the status
+          const errorText = await response.text();
+          console.log("FreeAgent error response:", errorText);
+          errorMessage = `${errorMessage} - Check console for details`;
+        }
+
+        throw new Error(`Token exchange failed: ${errorMessage}`);
       }
 
-      return await response.json();
+      const tokenData = await response.json();
+      console.log("FreeAgent token exchange successful");
+      return tokenData;
     } catch (error) {
       console.error("FreeAgent token exchange error:", error);
       throw error;
