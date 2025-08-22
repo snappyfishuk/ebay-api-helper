@@ -273,14 +273,21 @@ const EbayApiAccountingHelper = () => {
 
   const exchangeFreeAgentToken = async (code) => {
     try {
+      // FreeAgent requires HTTP Basic Auth with client_id:client_secret
+      const credentials = btoa(
+        `${freeAgentConfig.clientId}:${freeAgentConfig.clientSecret}`
+      );
+
       const requestData = {
-        client_id: freeAgentConfig.clientId,
-        client_secret: freeAgentConfig.clientSecret,
         grant_type: "authorization_code",
         code: code,
         redirect_uri: window.location.origin + "/",
       };
 
+      console.log(
+        "FreeAgent token request - Basic Auth credentials for:",
+        freeAgentConfig.clientId
+      );
       console.log("FreeAgent token request data:", requestData);
 
       const response = await fetch(
@@ -289,16 +296,15 @@ const EbayApiAccountingHelper = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: `Basic ${credentials}`, // HTTP Basic Auth required by FreeAgent
           },
           body: new URLSearchParams(requestData),
         }
       );
 
-      // Log the response for debugging
       console.log("FreeAgent token response status:", response.status);
 
       if (!response.ok) {
-        // Try to get error details
         const contentType = response.headers.get("content-type");
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
 
@@ -308,7 +314,6 @@ const EbayApiAccountingHelper = () => {
             errorData.error_description || errorData.error || errorMessage;
           console.log("FreeAgent JSON error:", errorData);
         } else {
-          // If it's HTML, just show the status
           const errorText = await response.text();
           console.log("FreeAgent error response:", errorText);
           errorMessage = `${errorMessage} - Check console for details`;
