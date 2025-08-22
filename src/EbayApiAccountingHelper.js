@@ -273,6 +273,16 @@ const EbayApiAccountingHelper = () => {
 
   const exchangeFreeAgentToken = async (code) => {
     try {
+      const requestData = {
+        client_id: freeAgentConfig.clientId,
+        client_secret: freeAgentConfig.clientSecret,
+        grant_type: "authorization_code",
+        code: code,
+        redirect_uri: window.location.origin + "/",
+      };
+
+      console.log("FreeAgent token request data:", requestData);
+
       const response = await fetch(
         "https://api.freeagent.com/v2/token_endpoint",
         {
@@ -280,19 +290,12 @@ const EbayApiAccountingHelper = () => {
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
           },
-          body: new URLSearchParams({
-            client_id: freeAgentConfig.clientId,
-            client_secret: freeAgentConfig.clientSecret,
-            grant_type: "authorization_code",
-            code: code,
-            redirect_uri: window.location.origin + "/", // Add trailing slash to match
-          }),
+          body: new URLSearchParams(requestData),
         }
       );
 
       // Log the response for debugging
       console.log("FreeAgent token response status:", response.status);
-      console.log("FreeAgent token response headers:", response.headers);
 
       if (!response.ok) {
         // Try to get error details
@@ -303,6 +306,7 @@ const EbayApiAccountingHelper = () => {
           const errorData = await response.json();
           errorMessage =
             errorData.error_description || errorData.error || errorMessage;
+          console.log("FreeAgent JSON error:", errorData);
         } else {
           // If it's HTML, just show the status
           const errorText = await response.text();
