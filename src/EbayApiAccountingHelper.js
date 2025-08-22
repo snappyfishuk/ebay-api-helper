@@ -225,8 +225,10 @@ const EbayApiAccountingHelper = () => {
   // ===== FREEAGENT API FUNCTIONS =====
 
   const connectFreeAgent = async () => {
-    // Use direct credentials to bypass form state issues
-    const directClientId = "L7XkhS83nfcJ2MEc1wRBGQ";
+    if (!freeAgentConfig.clientId || !freeAgentConfig.clientSecret) {
+      setError("Please enter your FreeAgent API credentials");
+      return;
+    }
 
     try {
       const redirectUri = window.location.origin + "/";
@@ -236,13 +238,13 @@ const EbayApiAccountingHelper = () => {
 
       const authUrl =
         `https://api.freeagent.com/v2/approve_app?` +
-        `client_id=${directClientId}&` +
+        `client_id=${freeAgentConfig.clientId}&` +
         `response_type=code&` +
         `redirect_uri=${encodeURIComponent(redirectUri)}&` +
         `state=${state}`;
 
       console.log("FreeAgent OAuth URL:", authUrl);
-      window.location.href = authUrl; // Redirect to FreeAgent OAuth
+      window.location.href = authUrl;
     } catch (err) {
       setError("Failed to connect to FreeAgent: " + err.message);
     }
@@ -272,17 +274,18 @@ const EbayApiAccountingHelper = () => {
 
   const exchangeFreeAgentToken = async (code) => {
     try {
-      // Direct credentials - bypass the problematic state
-      const directClientId = "L7XkhS83nfcJ2MEc1wRBGQ";
-      const directClientSecret = "JuGKlgFAGUBCOwA2y4F_XA";
+      if (!freeAgentConfig.clientId || !freeAgentConfig.clientSecret) {
+        throw new Error(
+          "FreeAgent credentials are missing. Please enter them in the form."
+        );
+      }
 
-      console.log("Using direct credentials:", {
-        clientId: directClientId,
-        clientSecret: directClientSecret.substring(0, 5) + "...",
-      });
+      console.log("Using form credentials for:", freeAgentConfig.clientId);
 
       // FreeAgent requires HTTP Basic Auth with client_id:client_secret
-      const credentials = btoa(`${directClientId}:${directClientSecret}`);
+      const credentials = btoa(
+        `${freeAgentConfig.clientId}:${freeAgentConfig.clientSecret}`
+      );
 
       const requestData = {
         grant_type: "authorization_code",
@@ -298,7 +301,7 @@ const EbayApiAccountingHelper = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
-            Authorization: `Basic ${credentials}`, // HTTP Basic Auth required by FreeAgent
+            Authorization: `Basic ${credentials}`,
           },
           body: new URLSearchParams(requestData),
         }
@@ -330,8 +333,6 @@ const EbayApiAccountingHelper = () => {
       // Update the state with the successful connection
       setFreeAgentConfig((prev) => ({
         ...prev,
-        clientId: directClientId,
-        clientSecret: directClientSecret,
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token,
         isConnected: true,
@@ -549,24 +550,18 @@ const EbayApiAccountingHelper = () => {
               Client ID
             </label>
             <input
+              key="fa-client-id"
               type="text"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              value={freeAgentConfig.clientId}
-              onChange={(e) => {
-                console.log("FreeAgent Client ID changed to:", e.target.value);
+              defaultValue={freeAgentConfig.clientId}
+              onBlur={(e) => {
                 setFreeAgentConfig((prev) => ({
                   ...prev,
                   clientId: e.target.value,
                 }));
+                console.log("FreeAgent Client ID set to:", e.target.value);
               }}
-              onInput={(e) => {
-                console.log("FreeAgent Client ID input to:", e.target.value);
-                setFreeAgentConfig((prev) => ({
-                  ...prev,
-                  clientId: e.target.value,
-                }));
-              }}
-              placeholder="L7XkhS83nfcJ2MEc1wRBGQ"
+              placeholder="Enter your FreeAgent Client ID"
             />
           </div>
 
@@ -575,53 +570,20 @@ const EbayApiAccountingHelper = () => {
               Client Secret
             </label>
             <input
+              key="fa-client-secret"
               type="password"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              value={freeAgentConfig.clientSecret}
-              onChange={(e) => {
-                console.log(
-                  "FreeAgent Client Secret changed to:",
-                  e.target.value
-                );
+              defaultValue={freeAgentConfig.clientSecret}
+              onBlur={(e) => {
                 setFreeAgentConfig((prev) => ({
                   ...prev,
                   clientSecret: e.target.value,
                 }));
+                console.log("FreeAgent Client Secret set");
               }}
-              onInput={(e) => {
-                console.log(
-                  "FreeAgent Client Secret input to:",
-                  e.target.value
-                );
-                setFreeAgentConfig((prev) => ({
-                  ...prev,
-                  clientSecret: e.target.value,
-                }));
-              }}
-              placeholder="JuGKlgFAGUBCOwA2y4F_XA"
+              placeholder="Enter your FreeAgent Client Secret"
             />
           </div>
-        </div>
-
-        {/* Quick Fix Button */}
-        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <p className="text-sm text-yellow-800 mb-2">
-            <strong>Quick Fix:</strong> If the form inputs aren't working, click
-            this button to set your credentials:
-          </p>
-          <button
-            onClick={() => {
-              setFreeAgentConfig((prev) => ({
-                ...prev,
-                clientId: "L7XkhS83nfcJ2MEc1wRBGQ",
-                clientSecret: "JuGKlgFAGUBCOwA2y4F_XA",
-              }));
-              console.log("FreeAgent credentials set via button");
-            }}
-            className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 text-sm"
-          >
-            Set FreeAgent Credentials
-          </button>
         </div>
 
         <button
