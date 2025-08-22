@@ -62,10 +62,14 @@ const EbayApiAccountingHelper = () => {
   // ===== EBAY API FUNCTIONS =====
 
   const getEbayAuthUrl = () => {
+    if (!ebayConfig.clientId) {
+      throw new Error("eBay Client ID is required");
+    }
+
     const scopes =
       "https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.finances";
-    // Use consistent redirect URI - must match what's configured in eBay Developer account
-    const redirectUri = window.location.origin; // Just the base URL without path
+    // Use consistent redirect URI - must match eBay Developer Console exactly
+    const redirectUri = window.location.origin + "/"; // With trailing slash
     const state = Math.random().toString(36).substring(7);
 
     localStorage.setItem("ebay_oauth_state", state);
@@ -83,6 +87,8 @@ const EbayApiAccountingHelper = () => {
       `scope=${encodeURIComponent(scopes)}&` +
       `state=${state}`;
 
+    console.log("eBay OAuth URL:", authUrl);
+    console.log("eBay Redirect URI:", redirectUri);
     return authUrl;
   };
 
@@ -123,10 +129,21 @@ const EbayApiAccountingHelper = () => {
 
   const exchangeEbayToken = async (code) => {
     try {
+      if (!ebayConfig.clientId || !ebayConfig.clientSecret) {
+        throw new Error(
+          "eBay credentials are missing. Please enter them in the form."
+        );
+      }
+
       const baseUrl =
         ebayConfig.environment === "sandbox"
           ? "https://api.sandbox.ebay.com"
           : "https://api.ebay.com";
+
+      const redirectUri = window.location.origin + "/"; // Match the auth redirect URI
+
+      console.log("eBay token exchange for:", ebayConfig.clientId);
+      console.log("Using redirect URI:", redirectUri);
 
       const response = await fetch(`${baseUrl}/identity/v1/oauth2/token`, {
         method: "POST",
@@ -139,20 +156,29 @@ const EbayApiAccountingHelper = () => {
         body: new URLSearchParams({
           grant_type: "authorization_code",
           code: code,
-          redirect_uri: window.location.origin, // Match the same redirect URI used in auth
+          redirect_uri: redirectUri,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          `Token exchange failed: ${
+          `eBay token exchange failed: ${
             errorData.error_description || response.status
           }`
         );
       }
 
       const tokenData = await response.json();
+      console.log("eBay token exchange successful");
+
+      // Update state
+      setEbayConfig((prev) => ({
+        ...prev,
+        authToken: tokenData.access_token,
+        isConnected: true,
+      }));
+
       return tokenData.access_token;
     } catch (error) {
       console.error("eBay token exchange error:", error);
