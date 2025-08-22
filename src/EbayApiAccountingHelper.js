@@ -273,6 +273,20 @@ const EbayApiAccountingHelper = () => {
 
   const exchangeFreeAgentToken = async (code) => {
     try {
+      // Debug: Check if credentials are actually in state
+      console.log("FreeAgent Config State:", {
+        clientId: freeAgentConfig.clientId,
+        clientSecret: freeAgentConfig.clientSecret,
+        clientIdLength: freeAgentConfig.clientId?.length,
+        clientSecretLength: freeAgentConfig.clientSecret?.length,
+      });
+
+      if (!freeAgentConfig.clientId || !freeAgentConfig.clientSecret) {
+        throw new Error(
+          "FreeAgent credentials are missing from state. Please enter them in the form."
+        );
+      }
+
       // FreeAgent requires HTTP Basic Auth with client_id:client_secret
       const credentials = btoa(
         `${freeAgentConfig.clientId}:${freeAgentConfig.clientSecret}`
