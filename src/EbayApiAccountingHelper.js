@@ -231,7 +231,7 @@ const EbayApiAccountingHelper = () => {
     }
 
     try {
-      const redirectUri = window.location.origin; // Consistent redirect URI
+      const redirectUri = window.location.origin + "/"; // Add trailing slash to match FreeAgent settings
       const state = Math.random().toString(36).substring(7);
 
       localStorage.setItem("freeagent_oauth_state", state);
@@ -285,7 +285,7 @@ const EbayApiAccountingHelper = () => {
             client_secret: freeAgentConfig.clientSecret,
             grant_type: "authorization_code",
             code: code,
-            redirect_uri: window.location.origin, // Match the same redirect URI used in auth
+            redirect_uri: window.location.origin + "/", // Add trailing slash to match
           }),
         }
       );
