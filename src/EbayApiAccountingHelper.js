@@ -23,7 +23,7 @@ const EbayApiAccountingHelper = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [transactions, setTransactions] = useState([]);
-  const [payouts, setPayouts] = useState([]);
+  // const [payouts, setPayouts] = useState([]); // Removed unused variable
   const [selectedDateRange, setSelectedDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
@@ -31,7 +31,8 @@ const EbayApiAccountingHelper = () => {
 
   // Processing State
   const [processedData, setProcessedData] = useState(null);
-  const [syncOptions, setSyncOptions] = useState({
+  // Removed unused setSyncOptions
+  const [syncOptions] = useState({
     autoSync: false,
     createCategories: true,
     splitTransactions: true
@@ -197,7 +198,7 @@ const EbayApiAccountingHelper = () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       setTransactions(mockTransactions);
-      setPayouts(mockPayouts);
+      // setPayouts(mockPayouts); // Removed since payouts not used
       
       processAccountingData(mockTransactions, mockPayouts);
 
