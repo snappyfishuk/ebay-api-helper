@@ -553,13 +553,14 @@ const EbayApiAccountingHelper = () => {
               type="text"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
               value={freeAgentConfig.clientId}
-              onChange={(e) =>
+              onChange={(e) => {
+                console.log("FreeAgent Client ID changed to:", e.target.value);
                 setFreeAgentConfig((prev) => ({
                   ...prev,
                   clientId: e.target.value,
-                }))
-              }
-              placeholder="Your-FreeAgent-Client-ID"
+                }));
+              }}
+              placeholder="L7XkhS83nfcJ2MEc1wRBGQ"
             />
           </div>
 
@@ -571,13 +572,17 @@ const EbayApiAccountingHelper = () => {
               type="password"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
               value={freeAgentConfig.clientSecret}
-              onChange={(e) =>
+              onChange={(e) => {
+                console.log(
+                  "FreeAgent Client Secret changed to:",
+                  e.target.value
+                );
                 setFreeAgentConfig((prev) => ({
                   ...prev,
                   clientSecret: e.target.value,
-                }))
-              }
-              placeholder="Your-FreeAgent-Client-Secret"
+                }));
+              }}
+              placeholder="JuGKlgFAGUBCOwA2y4F_XA"
             />
           </div>
         </div>
