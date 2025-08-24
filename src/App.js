@@ -1,13 +1,12 @@
-// src/App.js
-import React, { useState, useEffect } from 'react';
-import LoginForm from './components/Auth/LoginForm';
-import RegisterForm from './components/Auth/RegisterForm';
-import EbayApiAccountingHelper from './EbayApiAccountingHelper';
+import React, { useState, useEffect } from "react";
+import LoginForm from "./components/Auth/LoginForm";
+import RegisterForm from "./components/Auth/RegisterForm";
+import EbayApiAccountingHelper from "./EbayApiAccountingHelper";
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+  const [authMode, setAuthMode] = useState("login"); // 'login' or 'register'
 
   useEffect(() => {
     checkAuthStatus();
@@ -15,28 +14,31 @@ function App() {
 
   const checkAuthStatus = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (!token) {
         setLoading(false);
         return;
       }
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include'
-      });
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/auth/me`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: "include",
+        }
+      );
 
       if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
+        const data = await response.json();
+        setUser(data.data.user);
       } else {
-        localStorage.removeItem('token');
+        localStorage.removeItem("token");
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
-      localStorage.removeItem('token');
+      console.error("Auth check failed:", error);
+      localStorage.removeItem("token");
     } finally {
       setLoading(false);
     }
@@ -53,13 +55,13 @@ function App() {
   const handleLogout = async () => {
     try {
       await fetch(`${process.env.REACT_APP_API_URL}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include'
+        method: "POST",
+        credentials: "include",
       });
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     } finally {
-      localStorage.removeItem('token');
+      localStorage.removeItem("token");
       setUser(null);
     }
   };
@@ -82,20 +84,24 @@ function App() {
         <div className="container mx-auto px-4">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">eBay API Helper</h1>
-            <p className="text-xl text-gray-600">Sync your eBay transactions with FreeAgent</p>
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              eBay API Helper
+            </h1>
+            <p className="text-xl text-gray-600">
+              Sync your eBay transactions with FreeAgent
+            </p>
           </div>
 
           {/* Auth Forms */}
-          {authMode === 'login' ? (
-            <LoginForm 
+          {authMode === "login" ? (
+            <LoginForm
               onLogin={handleLogin}
-              switchToRegister={() => setAuthMode('register')}
+              switchToRegister={() => setAuthMode("register")}
             />
           ) : (
-            <RegisterForm 
+            <RegisterForm
               onRegister={handleRegister}
-              switchToLogin={() => setAuthMode('login')}
+              switchToLogin={() => setAuthMode("login")}
             />
           )}
         </div>
@@ -111,8 +117,12 @@ function App() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">eBay API Helper</h1>
-              <p className="text-sm text-gray-600">Sync your eBay transactions with FreeAgent</p>
+              <h1 className="text-2xl font-bold text-gray-900">
+                eBay API Helper
+              </h1>
+              <p className="text-sm text-gray-600">
+                Sync your eBay transactions with FreeAgent
+              </p>
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-right">
@@ -121,7 +131,7 @@ function App() {
                 </div>
                 <div className="text-xs text-gray-500">{user.email}</div>
               </div>
-              <button 
+              <button
                 onClick={handleLogout}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-sm"
               >

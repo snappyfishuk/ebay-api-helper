@@ -1,59 +1,61 @@
-// src/components/Auth/RegisterForm.js
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 const RegisterForm = ({ onRegister, switchToLogin }) => {
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      setError("Passwords do not match");
       setLoading(false);
       return;
     }
 
     if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
+      setError("Password must be at least 6 characters");
       setLoading(false);
       return;
     }
-    
+
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          password: formData.password
-        })
-      });
-      
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/auth/register`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            email: formData.email,
+            password: formData.password,
+          }),
+        }
+      );
+
       const data = await response.json();
-      
+
       if (response.ok) {
-        localStorage.setItem('token', data.token);
-        onRegister(data.user);
+        localStorage.setItem("token", data.token);
+        onRegister(data.data.user);
       } else {
-        setError(data.message || 'Registration failed');
+        setError(data.message || "Registration failed");
       }
     } catch (error) {
-      console.error('Registration error:', error);
-      setError('Network error - please try again');
+      console.error("Registration error:", error);
+      setError("Network error - please try again");
     } finally {
       setLoading(false);
     }
@@ -62,7 +64,7 @@ const RegisterForm = ({ onRegister, switchToLogin }) => {
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
@@ -85,6 +87,7 @@ const RegisterForm = ({ onRegister, switchToLogin }) => {
                 name="firstName"
                 value={formData.firstName}
                 onChange={handleChange}
+                autoComplete="given-name"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="First name"
                 required
@@ -99,6 +102,7 @@ const RegisterForm = ({ onRegister, switchToLogin }) => {
                 name="lastName"
                 value={formData.lastName}
                 onChange={handleChange}
+                autoComplete="family-name"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Last name"
                 required
@@ -115,12 +119,13 @@ const RegisterForm = ({ onRegister, switchToLogin }) => {
               name="email"
               value={formData.email}
               onChange={handleChange}
+              autoComplete="email"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Enter your email"
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Password
@@ -130,6 +135,7 @@ const RegisterForm = ({ onRegister, switchToLogin }) => {
               name="password"
               value={formData.password}
               onChange={handleChange}
+              autoComplete="new-password"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Create a password"
               required
@@ -146,6 +152,7 @@ const RegisterForm = ({ onRegister, switchToLogin }) => {
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
+              autoComplete="new-password"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Confirm your password"
               required
@@ -157,18 +164,18 @@ const RegisterForm = ({ onRegister, switchToLogin }) => {
               {error}
             </div>
           )}
-          
-          <button 
-            type="submit" 
+
+          <button
+            type="submit"
             disabled={loading}
             className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
-            {loading ? 'Creating Account...' : 'Create Account'}
+            {loading ? "Creating Account..." : "Create Account"}
           </button>
         </form>
 
         <div className="mt-6 text-center">
-          <button 
+          <button
             onClick={switchToLogin}
             className="text-blue-600 hover:underline"
           >

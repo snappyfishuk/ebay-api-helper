@@ -87,6 +87,7 @@ const EbayApiAccountingHelper = ({ user }) => {
   const connectToEbay = async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const response = await fetch(
         `${process.env.REACT_APP_API_URL}/api/ebay/auth-url?environment=production`,
         {
@@ -97,7 +98,7 @@ const EbayApiAccountingHelper = ({ user }) => {
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
+      if (response.ok && data.status === "success") {
         // Backend handles the OAuth - redirect to eBay
         window.location.href = data.data.authUrl;
       } else {
@@ -114,6 +115,7 @@ const EbayApiAccountingHelper = ({ user }) => {
   const connectToFreeAgent = async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const response = await fetch(
         `${process.env.REACT_APP_API_URL}/api/freeagent/auth-url`,
         {
@@ -124,7 +126,7 @@ const EbayApiAccountingHelper = ({ user }) => {
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
+      if (response.ok && data.status === "success") {
         // Backend handles the OAuth - redirect to FreeAgent
         window.location.href = data.data.authUrl;
       } else {
@@ -140,6 +142,7 @@ const EbayApiAccountingHelper = ({ user }) => {
 
   const disconnectEbay = async () => {
     try {
+      setError(null);
       const response = await fetch(
         `${process.env.REACT_APP_API_URL}/api/ebay/disconnect`,
         {
@@ -167,6 +170,7 @@ const EbayApiAccountingHelper = ({ user }) => {
 
   const disconnectFreeAgent = async () => {
     try {
+      setError(null);
       const response = await fetch(
         `${process.env.REACT_APP_API_URL}/api/freeagent/disconnect`,
         {
