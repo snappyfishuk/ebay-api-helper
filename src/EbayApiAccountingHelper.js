@@ -51,11 +51,12 @@ const EbayApiAccountingHelper = ({ user }) => {
       );
 
       if (ebayResponse.ok) {
-        const ebayData = await ebayResponse.json();
+        const ebayResponse_data = await ebayResponse.json();
+        const ebayData = ebayResponse_data.data || ebayResponse_data; // Handle the nested data
         setConnections((prev) => ({
           ...prev,
           ebay: {
-            isConnected: ebayData.isConnected,
+            isConnected: ebayData.isConnected, // ✅ Now correct
             environment: ebayData.environment || "production",
           },
         }));
@@ -71,7 +72,9 @@ const EbayApiAccountingHelper = ({ user }) => {
       );
 
       if (freeagentResponse.ok) {
-        const freeagentData = await freeagentResponse.json();
+        const freeagentResponse_data = await freeagentResponse.json();
+        const freeagentData =
+          freeagentResponse_data.data || freeagentResponse_data;
         setConnections((prev) => ({
           ...prev,
           freeagent: {
