@@ -78,7 +78,7 @@ const EbayApiAccountingHelper = ({ user }) => {
         setConnections((prev) => ({
           ...prev,
           freeagent: {
-            isConnected: freeagentData.isConnected,
+            isConnected: freeagentData.isConnected, // ✅ Now correct
           },
         }));
       }
