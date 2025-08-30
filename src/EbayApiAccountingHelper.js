@@ -29,6 +29,112 @@ const EbayApiAccountingHelper = ({ user }) => {
     }
   }, [user]);
 
+  // ===== ENHANCED TRANSACTION DESCRIPTION FUNCTIONS =====
+
+  const generateEnhancedTransactionDescription = (txn) => {
+    const {
+      transactionType,
+      transactionMemo,
+      references = [],
+      salesRecordReference,
+      amount,
+      transactionStatus,
+      bookingEntry
+    } = txn;
+
+    let description = '';
+    
+    // Start with transaction memo (most meaningful info from eBay)
+    if (transactionMemo && transactionMemo !== 'No description') {
+      description = transactionMemo;
+    } else {
+      description = `eBay ${formatTransactionType(transactionType)}`;
+    }
+
+    // Add reference information if available
+    const meaningfulReference = getMeaningfulReference(references, salesRecordReference);
+    if (meaningfulReference) {
+      description += ` - ${meaningfulReference}`;
+    }
+
+    // Add status for pending items
+    if (needsStatusInfo(transactionStatus)) {
+      description += ` (${formatTransactionStatus(transactionStatus)})`;
+    }
+
+    return description.substring(0, 255);
+  };
+
+  const formatTransactionType = (transactionType) => {
+    const typeMap = {
+      'SALE': 'Sale',
+      'REFUND': 'Refund',
+      'WITHDRAWAL': 'Payout/Withdrawal',
+      'NON_SALE_CHARGE': 'Fee/Charge',
+      'DISPUTE': 'Dispute',
+      'TRANSFER': 'Transfer',
+      'ADJUSTMENT': 'Adjustment',
+      'CREDIT': 'Credit',
+      'DEBIT': 'Debit'
+    };
+    
+    return typeMap[transactionType] || transactionType;
+  };
+
+  const getMeaningfulReference = (references, salesRecordReference) => {
+    if (!references || references.length === 0) {
+      return salesRecordReference && salesRecordReference !== '0' 
+        ? `Ref: ${salesRecordReference}` 
+        : null;
+    }
+
+    const priorityOrder = ['ORDER_ID', 'ITEM_ID', 'PAYOUT_ID', 'TRANSACTION_ID', 'INVOICE_ID'];
+    const sortedRefs = references.sort((a, b) => {
+      const aIndex = priorityOrder.indexOf(a.referenceType);
+      const bIndex = priorityOrder.indexOf(b.referenceType);
+      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+    });
+
+    const topRef = sortedRefs[0];
+    return formatReference(topRef.referenceType, topRef.referenceId);
+  };
+
+  const formatReference = (referenceType, referenceId) => {
+    const formatMap = {
+      'ORDER_ID': `Order #${referenceId}`,
+      'ITEM_ID': `Item #${referenceId}`,
+      'PAYOUT_ID': `Payout #${referenceId}`,
+      'TRANSACTION_ID': `Transaction #${referenceId}`,
+      'INVOICE_ID': `Invoice #${referenceId}`,
+      'DISPUTE_ID': `Dispute #${referenceId}`
+    };
+    
+    return formatMap[referenceType] || `${referenceType}: ${referenceId}`;
+  };
+
+  const needsStatusInfo = (transactionStatus) => {
+    const statusesNeedingInfo = [
+      'FUNDS_PROCESSING',
+      'FUNDS_ON_HOLD',
+      'FUNDS_AVAILABLE_FOR_PAYOUT',
+      'PAYOUT_INITIATED'
+    ];
+    
+    return statusesNeedingInfo.includes(transactionStatus);
+  };
+
+  const formatTransactionStatus = (transactionStatus) => {
+    const statusMap = {
+      'FUNDS_PROCESSING': 'Processing',
+      'FUNDS_ON_HOLD': 'On Hold',
+      'FUNDS_AVAILABLE_FOR_PAYOUT': 'Ready for Payout',
+      'PAYOUT_INITIATED': 'Payout Initiated',
+      'COMPLETED': 'Completed'
+    };
+    
+    return statusMap[transactionStatus] || transactionStatus;
+  };
+
   // ===== BACKEND API FUNCTIONS =====
 
   const getAuthHeaders = () => {
@@ -219,7 +325,7 @@ const EbayApiAccountingHelper = ({ user }) => {
 
       if (response.ok) {
         setTransactions(data.data?.transactions || []);
-        // Process data for FreeAgent
+        // Process data for FreeAgent with enhanced descriptions
         const processed = processTransactionsForFreeAgent(
           data.data?.transactions || []
         );
@@ -277,7 +383,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     }
   };
 
-  // ===== DATA PROCESSING =====
+  // ===== ENHANCED DATA PROCESSING =====
 
   const processTransactionsForFreeAgent = (ebayTransactions) => {
     if (!ebayTransactions || ebayTransactions.length === 0) {
@@ -287,9 +393,8 @@ const EbayApiAccountingHelper = ({ user }) => {
     const freeAgentEntries = ebayTransactions.map((txn) => ({
       date: new Date(txn.transactionDate).toISOString().split("T")[0],
       amount: parseFloat(txn.amount?.value || 0),
-      description: `eBay ${txn.transactionType}: ${
-        txn.references?.[0]?.title || "Transaction"
-      }`,
+      // Use enhanced description instead of basic one
+      description: generateEnhancedTransactionDescription(txn),
       category: txn.transactionType === "SALE" ? "Sales" : "Refunds",
       reference: txn.orderId,
     }));
@@ -362,7 +467,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                     eBay Connected Successfully
                   </p>
                   <p className="text-green-600 text-sm">
-                    Environment: {connections.ebay.environment}
+                    Environment: {connections.ebay.environment} | Enhanced descriptions active
                   </p>
                 </div>
               </div>
@@ -381,13 +486,12 @@ const EbayApiAccountingHelper = ({ user }) => {
                 Connect Your eBay Account
               </h4>
               <p className="text-blue-800 text-sm mb-4">
-                Securely connect your eBay account to fetch transaction data.
-                Your credentials are encrypted and stored safely.
+                Securely connect your eBay account to fetch transaction data with enhanced descriptions.
               </p>
               <ul className="text-blue-700 text-sm space-y-1">
-                <li>• Access to transaction history</li>
-                <li>• Automatic data synchronization</li>
-                <li>• Production eBay API integration</li>
+                <li>• Enhanced transaction descriptions using eBay's rich data</li>
+                <li>• Uses transaction memos and reference information</li>
+                <li>• Production eBay API integration with RFC 9421 signatures</li>
               </ul>
             </div>
             <button
@@ -438,7 +542,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                     FreeAgent Connected Successfully
                   </p>
                   <p className="text-green-600 text-sm">
-                    Ready to sync transactions
+                    Ready to sync transactions with enhanced descriptions
                   </p>
                 </div>
               </div>
@@ -457,12 +561,11 @@ const EbayApiAccountingHelper = ({ user }) => {
                 Connect Your FreeAgent Account
               </h4>
               <p className="text-green-800 text-sm mb-4">
-                Connect FreeAgent to automatically create accounting entries
-                from your eBay transactions.
+                Connect FreeAgent to automatically create accounting entries with meaningful descriptions.
               </p>
               <ul className="text-green-700 text-sm space-y-1">
-                <li>• Automatic bank transaction creation</li>
-                <li>• Categorized accounting entries</li>
+                <li>• "Seller initiated payout - Payout #12345"</li>
+                <li>• "Item sold via Buy It Now - Order #67890"</li>
                 <li>• Secure OAuth connection</li>
               </ul>
             </div>
@@ -480,14 +583,14 @@ const EbayApiAccountingHelper = ({ user }) => {
       {/* System Status */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          🚀 System Status
+          System Status
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-blue-50 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium text-blue-900">Backend Connected</p>
-                <p className="text-blue-700 text-sm">Secure API proxy active</p>
+                <p className="text-blue-700 text-sm">Enhanced processing active</p>
               </div>
               <div className="h-3 w-3 bg-green-400 rounded-full"></div>
             </div>
@@ -626,9 +729,14 @@ const EbayApiAccountingHelper = ({ user }) => {
     <div className="space-y-6">
       {transactions.length > 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            eBay Transactions ({transactions.length})
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">
+              eBay Transactions ({transactions.length})
+            </h3>
+            <div className="bg-blue-100 px-3 py-1 rounded-full text-sm font-medium text-blue-800">
+              Enhanced Descriptions
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -643,7 +751,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                     Amount
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Description
+                    Enhanced Description
                   </th>
                 </tr>
               </thead>
@@ -654,7 +762,9 @@ const EbayApiAccountingHelper = ({ user }) => {
                       {new Date(txn.transactionDate).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {txn.transactionType}
+                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                        {formatTransactionType(txn.transactionType)}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <span
@@ -668,7 +778,9 @@ const EbayApiAccountingHelper = ({ user }) => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {txn.references?.[0]?.title || "No description"}
+                      <div className="max-w-xs truncate font-medium" title={generateEnhancedTransactionDescription(txn)}>
+                        {generateEnhancedTransactionDescription(txn)}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -683,7 +795,7 @@ const EbayApiAccountingHelper = ({ user }) => {
             No Transactions Found
           </h3>
           <p className="text-gray-600">
-            Connect to eBay and fetch transactions to see them here.
+            Connect to eBay and fetch transactions to see enhanced descriptions here.
           </p>
         </div>
       )}
@@ -694,9 +806,14 @@ const EbayApiAccountingHelper = ({ user }) => {
     <div className="space-y-6">
       {processedData?.freeAgentEntries?.length > 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            FreeAgent Entries ({processedData.freeAgentEntries.length})
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Enhanced FreeAgent Entries ({processedData.freeAgentEntries.length})
+            </h3>
+            <div className="bg-green-100 px-3 py-1 rounded-full text-sm font-medium text-green-800">
+              Ready for Sync
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -705,7 +822,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                     Date
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Description
+                    Enhanced Description
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Category
@@ -721,11 +838,15 @@ const EbayApiAccountingHelper = ({ user }) => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {entry.date}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {entry.description}
+                    <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                      <div className="truncate font-medium" title={entry.description}>
+                        {entry.description}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {entry.category}
+                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                        {entry.category}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <span
@@ -749,7 +870,7 @@ const EbayApiAccountingHelper = ({ user }) => {
             No Entries Generated
           </h3>
           <p className="text-gray-600">
-            Fetch eBay transactions first to generate FreeAgent entries.
+            Fetch eBay transactions first to generate enhanced FreeAgent entries.
           </p>
         </div>
       )}
@@ -861,7 +982,7 @@ const EbayApiAccountingHelper = ({ user }) => {
         <div className="mt-16 text-center">
           <div className="bg-white rounded-xl border border-gray-200 p-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              🚀 Production Integration Status
+              Enhanced Production Integration
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-gray-600">
               <div className="flex flex-col items-center space-y-2">
@@ -896,18 +1017,18 @@ const EbayApiAccountingHelper = ({ user }) => {
               </div>
               <div className="flex flex-col items-center space-y-2">
                 <div className="text-2xl">📊</div>
-                <div className="font-medium text-gray-900">Transactions</div>
+                <div className="font-medium text-gray-900">Enhanced Data</div>
                 <div className="text-gray-600">
-                  {transactions.length} loaded
+                  {transactions.length} transactions with rich descriptions
                 </div>
               </div>
             </div>
 
             <div className="mt-6 p-4 bg-blue-50 rounded-lg">
               <p className="text-xs text-blue-800">
-                <strong>✅ Production Ready:</strong> Connected to secure
-                backend with encrypted token storage, production eBay API
-                integration, and full OAuth security.
+                <strong>Enhanced Processing:</strong> Now uses eBay's transactionMemo field 
+                and reference data to create meaningful descriptions like "Seller initiated payout - Payout #12345" 
+                instead of generic "eBay WITHDRAWAL: Transaction".
               </p>
             </div>
           </div>
