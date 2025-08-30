@@ -390,16 +390,70 @@ const EbayApiAccountingHelper = ({ user }) => {
       return { freeAgentEntries: [] };
     }
 
-    const freeAgentEntries = ebayTransactions.map((txn) => ({
-      date: new Date(txn.transactionDate).toISOString().split("T")[0],
-      amount: parseFloat(txn.amount?.value || 0),
-      // Use enhanced description instead of basic one
-      description: generateEnhancedTransactionDescription(txn),
-      category: txn.transactionType === "SALE" ? "Sales" : "Refunds",
-      reference: txn.orderId,
-    }));
+    const freeAgentEntries = ebayTransactions.map((txn) => {
+      const originalAmount = parseFloat(txn.amount?.value || 0);
+      const isDebit = determineIfDebit(txn, originalAmount);
+      const displayAmount = Math.abs(originalAmount);
+      
+      return {
+        date: new Date(txn.transactionDate).toISOString().split("T")[0],
+        amount: displayAmount,
+        // Use enhanced description
+        description: generateEnhancedTransactionDescription(txn),
+        category: determineTransactionCategory(txn),
+        reference: txn.transactionId,
+        // Store actual transaction type for proper FreeAgent sync
+        transactionType: isDebit ? 'debit' : 'credit',
+        isDebit: isDebit,
+        originalAmount: originalAmount
+      };
+    });
 
     return { freeAgentEntries };
+  };
+
+  const determineIfDebit = (txn, amount) => {
+    // Debits (money going OUT of your account):
+    // - Payouts/Withdrawals (money going to your bank)
+    // - Fees charged by eBay 
+    // - Refunds to customers
+    // - Any negative amounts
+    
+    if (txn.bookingEntry === 'DEBIT' || 
+        txn.transactionType === 'WITHDRAWAL' ||
+        txn.transactionType === 'NON_SALE_CHARGE' ||
+        txn.transactionType === 'REFUND' ||
+        amount < 0) {
+      return true;
+    }
+    
+    // Credits (money coming INTO your account):
+    // - Sales
+    return false;
+  };
+
+  const determineTransactionCategory = (txn) => {
+    const categoryMap = {
+      'SALE': 'Sales',
+      'REFUND': 'Refunds', 
+      'NON_SALE_CHARGE': 'Business Expenses',
+      'WITHDRAWAL': 'Bank Transfers',
+      'DISPUTE': 'Disputes',
+      'ADJUSTMENT': 'Adjustments',
+      'TRANSFER': 'Transfers'
+    };
+
+    return categoryMap[txn.transactionType] || 'Other';
+  };
+
+  // UK Date formatting function
+  const formatUKDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit', 
+      year: 'numeric'
+    });
   };
 
   // ===== EXPORT FUNCTIONS =====
@@ -759,7 +813,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                 {transactions.map((txn, index) => (
                   <tr key={index}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(txn.transactionDate).toLocaleDateString()}
+                      {formatUKDate(txn.transactionDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
@@ -769,12 +823,12 @@ const EbayApiAccountingHelper = ({ user }) => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <span
                         className={
-                          txn.amount?.value > 0
-                            ? "text-green-600"
-                            : "text-red-600"
+                          determineIfDebit(txn, parseFloat(txn.amount?.value || 0))
+                            ? "text-red-600"  // Debits are red (money going out)
+                            : "text-green-600" // Credits are green (money coming in)
                         }
                       >
-                        {txn.amount?.currencyCode} {txn.amount?.value}
+                        {txn.amount?.currencyCode} {Math.abs(txn.amount?.value || 0)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
@@ -828,6 +882,9 @@ const EbayApiAccountingHelper = ({ user }) => {
                     Category
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Amount
                   </th>
                 </tr>
@@ -836,7 +893,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                 {processedData.freeAgentEntries.map((entry, index) => (
                   <tr key={index}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {entry.date}
+                      {formatUKDate(entry.date)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
                       <div className="truncate font-medium" title={entry.description}>
@@ -848,13 +905,24 @@ const EbayApiAccountingHelper = ({ user }) => {
                         {entry.category}
                       </span>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          entry.isDebit
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}
+                      >
+                        {entry.isDebit ? 'Debit' : 'Credit'}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <span
                         className={
-                          entry.amount > 0 ? "text-green-600" : "text-red-600"
+                          entry.isDebit ? "text-red-600" : "text-green-600"
                         }
                       >
-                        £{entry.amount}
+                        {entry.isDebit ? '-' : '+'}£{entry.amount}
                       </span>
                     </td>
                   </tr>
