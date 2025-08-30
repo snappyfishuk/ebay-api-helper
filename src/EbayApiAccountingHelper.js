@@ -218,11 +218,12 @@ const EbayApiAccountingHelper = ({ user }) => {
       const data = await response.json();
 
       if (response.ok) {
-        setTransactions(data.transactions || []);
+        setTransactions(data.data?.transactions || []);
         // Process data for FreeAgent
         const processed = processTransactionsForFreeAgent(
-          data.transactions || []
+          data.data?.transactions || []
         );
+
         setProcessedData(processed);
       } else {
         setError(data.message || "Failed to fetch transactions");
