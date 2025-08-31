@@ -1,10 +1,27 @@
 import React, { useState, useEffect } from "react";
 
 const EbayApiAccountingHelper = ({ user }) => {
-  // Connection Status State (replaces manual config)
+  // Connection Status State
   const [connections, setConnections] = useState({
     ebay: { isConnected: false, environment: "production" },
     freeagent: { isConnected: false },
+  });
+
+  // Enhanced state for bank account selection and eBay contact
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [selectedBankAccount, setSelectedBankAccount] = useState("");
+  const [ebayContact, setEbayContact] = useState(null);
+  const [syncSettings, setSyncSettings] = useState({
+    preferredBankAccount: null,
+    ebayContactUrl: null,
+    autoCreateEbayContact: true,
+    defaultTransactionDescription: "eBay Transaction"
+  });
+  const [setupStatus, setSetupStatus] = useState({
+    ebayConnected: false,
+    freeagentConnected: false,
+    bankAccountSelected: false,
+    readyToSync: false
   });
 
   // Application State
@@ -21,43 +38,173 @@ const EbayApiAccountingHelper = ({ user }) => {
 
   // Processing State
   const [processedData, setProcessedData] = useState(null);
+  const [syncStatus, setSyncStatus] = useState(null);
 
-  // Check connection status on component mount
+  // useEffect Hooks
   useEffect(() => {
     if (user) {
       checkConnectionStatus();
+      loadSyncSettings();
     }
   }, [user]);
 
-  // ===== ENHANCED TRANSACTION DESCRIPTION FUNCTIONS =====
+  useEffect(() => {
+    if (connections.freeagent.isConnected) {
+      loadBankAccounts();
+      loadEbayContact();
+    }
+    updateSetupStatus();
+  }, [connections.freeagent.isConnected, connections.ebay.isConnected, selectedBankAccount]);
 
+  // Helper Functions
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("token");
+    return {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+  };
+
+  // Enhanced Backend Integration Functions
+  const loadSyncSettings = async () => {
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/freeagent/sync-settings`,
+        {
+          headers: getAuthHeaders(),
+          credentials: "include",
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setSyncSettings(data.data);
+        setSelectedBankAccount(data.data.preferredBankAccount || "");
+      }
+    } catch (error) {
+      console.error("Error loading sync settings:", error);
+    }
+  };
+
+  const loadBankAccounts = async () => {
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/freeagent/bank-accounts`,
+        {
+          headers: getAuthHeaders(),
+          credentials: "include",
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setBankAccounts(data.data.bankAccounts || []);
+        
+        if (data.data.bankAccounts.length === 1 && !selectedBankAccount) {
+          const bankAccount = data.data.bankAccounts[0].apiUrl;
+          setSelectedBankAccount(bankAccount);
+          await saveSyncSettings({ preferredBankAccount: bankAccount });
+        }
+      }
+    } catch (error) {
+      console.error("Error loading bank accounts:", error);
+      setError("Failed to load bank accounts from FreeAgent");
+    }
+  };
+
+  const loadEbayContact = async () => {
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/freeagent/contacts`,
+        {
+          headers: getAuthHeaders(),
+          credentials: "include",
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setEbayContact(data.data.ebayContact);
+        
+        if (data.data.ebayContact) {
+          await saveSyncSettings({ 
+            ebayContactUrl: data.data.ebayContact.apiUrl 
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error loading eBay contact:", error);
+    }
+  };
+
+  const saveSyncSettings = async (updates) => {
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/freeagent/sync-settings`,
+        {
+          method: "PUT",
+          headers: getAuthHeaders(),
+          credentials: "include",
+          body: JSON.stringify(updates),
+        }
+      );
+
+      if (response.ok) {
+        setSyncSettings(prev => ({ ...prev, ...updates }));
+        updateSetupStatus();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error saving sync settings:", error);
+      return false;
+    }
+  };
+
+  const handleBankAccountChange = async (bankAccountUrl) => {
+    setSelectedBankAccount(bankAccountUrl);
+    const success = await saveSyncSettings({ 
+      preferredBankAccount: bankAccountUrl 
+    });
+    if (!success) {
+      setError("Failed to save bank account preference");
+    }
+  };
+
+  const updateSetupStatus = () => {
+    setSetupStatus({
+      ebayConnected: connections.ebay.isConnected,
+      freeagentConnected: connections.freeagent.isConnected,
+      bankAccountSelected: !!selectedBankAccount,
+      readyToSync: connections.ebay.isConnected && 
+                  connections.freeagent.isConnected && 
+                  !!selectedBankAccount
+    });
+  };
+
+  // Enhanced Transaction Description Functions
   const generateEnhancedTransactionDescription = (txn) => {
     const {
       transactionType,
       transactionMemo,
       references = [],
       salesRecordReference,
-      amount,
       transactionStatus,
-      bookingEntry
     } = txn;
 
     let description = '';
     
-    // Start with transaction memo (most meaningful info from eBay)
     if (transactionMemo && transactionMemo !== 'No description') {
       description = transactionMemo;
     } else {
       description = `eBay ${formatTransactionType(transactionType)}`;
     }
 
-    // Add reference information if available
     const meaningfulReference = getMeaningfulReference(references, salesRecordReference);
     if (meaningfulReference) {
       description += ` - ${meaningfulReference}`;
     }
 
-    // Add status for pending items
     if (needsStatusInfo(transactionStatus)) {
       description += ` (${formatTransactionStatus(transactionStatus)})`;
     }
@@ -135,19 +282,9 @@ const EbayApiAccountingHelper = ({ user }) => {
     return statusMap[transactionStatus] || transactionStatus;
   };
 
-  // ===== BACKEND API FUNCTIONS =====
-
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("token");
-    return {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    };
-  };
-
+  // Backend API Functions
   const checkConnectionStatus = async () => {
     try {
-      // Check eBay connection
       const ebayResponse = await fetch(
         `${process.env.REACT_APP_API_URL}/api/ebay/connection-status`,
         {
@@ -157,18 +294,16 @@ const EbayApiAccountingHelper = ({ user }) => {
       );
 
       if (ebayResponse.ok) {
-        const ebayResponse_data = await ebayResponse.json();
-        const ebayData = ebayResponse_data.data || ebayResponse_data; // Handle the nested data
+        const ebayData = await ebayResponse.json();
         setConnections((prev) => ({
           ...prev,
           ebay: {
-            isConnected: ebayData.isConnected, // ✅ Now correct
-            environment: ebayData.environment || "production",
+            isConnected: ebayData.data?.isConnected || ebayData.isConnected,
+            environment: ebayData.data?.environment || ebayData.environment || "production",
           },
         }));
       }
 
-      // Check FreeAgent connection
       const freeagentResponse = await fetch(
         `${process.env.REACT_APP_API_URL}/api/freeagent/connection-status`,
         {
@@ -178,13 +313,11 @@ const EbayApiAccountingHelper = ({ user }) => {
       );
 
       if (freeagentResponse.ok) {
-        const freeagentResponse_data = await freeagentResponse.json();
-        const freeagentData =
-          freeagentResponse_data.data || freeagentResponse_data;
+        const freeagentData = await freeagentResponse.json();
         setConnections((prev) => ({
           ...prev,
           freeagent: {
-            isConnected: freeagentData.isConnected, // ✅ Now correct
+            isConnected: freeagentData.data?.isConnected || freeagentData.isConnected,
           },
         }));
       }
@@ -208,7 +341,6 @@ const EbayApiAccountingHelper = ({ user }) => {
       const data = await response.json();
 
       if (response.ok && data.status === "success") {
-        // Backend handles the OAuth - redirect to eBay
         window.location.href = data.data.authUrl;
       } else {
         setError(data.message || "Failed to connect to eBay");
@@ -236,7 +368,6 @@ const EbayApiAccountingHelper = ({ user }) => {
       const data = await response.json();
 
       if (response.ok && data.status === "success") {
-        // Backend handles the OAuth - redirect to FreeAgent
         window.location.href = data.data.authUrl;
       } else {
         setError(data.message || "Failed to connect to FreeAgent");
@@ -294,6 +425,9 @@ const EbayApiAccountingHelper = ({ user }) => {
           ...prev,
           freeagent: { isConnected: false },
         }));
+        setBankAccounts([]);
+        setSelectedBankAccount("");
+        setEbayContact(null);
       } else {
         setError("Failed to disconnect from FreeAgent");
       }
@@ -325,12 +459,11 @@ const EbayApiAccountingHelper = ({ user }) => {
 
       if (response.ok) {
         setTransactions(data.data?.transactions || []);
-        // Process data for FreeAgent with enhanced descriptions
         const processed = processTransactionsForFreeAgent(
           data.data?.transactions || []
         );
-
         setProcessedData(processed);
+        setSyncStatus(`Fetched ${data.data?.transactions?.length || 0} transactions from eBay ${data.data?.environment || 'production'}`);
       } else {
         setError(data.message || "Failed to fetch transactions");
       }
@@ -348,46 +481,65 @@ const EbayApiAccountingHelper = ({ user }) => {
       return;
     }
 
+    if (!selectedBankAccount) {
+      setError("Please select a bank account for the transactions");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
+      const syncData = {
+        transactions: processedData.freeAgentEntries.map(entry => ({
+          dated_on: entry.date,
+          amount: entry.transactionType === 'debit' ? -Math.abs(entry.amount) : Math.abs(entry.amount),
+          description: entry.description,
+          reference: entry.reference
+        })),
+        bankAccount: selectedBankAccount,
+        ebayContact: ebayContact?.apiUrl || null
+      };
+
       const response = await fetch(
         `${process.env.REACT_APP_API_URL}/api/freeagent/bank-transactions`,
         {
           method: "POST",
           headers: getAuthHeaders(),
           credentials: "include",
-          body: JSON.stringify({
-            transactions: processedData.freeAgentEntries,
-          }),
+          body: JSON.stringify(syncData),
         }
       );
 
       const data = await response.json();
 
       if (response.ok) {
-        alert(
-          `Successfully synced ${
-            data.count || processedData.freeAgentEntries.length
-          } transactions to FreeAgent!`
+        const summary = data.data?.summary || {};
+        setSyncStatus(
+          `Enhanced sync completed! ${summary.totalCreated || processedData.freeAgentEntries.length} transactions created in ${
+            bankAccounts.find(acc => acc.apiUrl === selectedBankAccount)?.name || 'selected account'
+          }, ${summary.totalFailed || 0} failed. ${
+            summary.linkedToEbayContact ? '✅ Linked to eBay contact' : ''
+          }`
         );
+        
+        setProcessedData(null);
+        setTransactions([]);
       } else {
         setError(data.message || "Failed to sync to FreeAgent");
       }
     } catch (error) {
-      console.error("FreeAgent sync error:", error);
+      console.error("Enhanced FreeAgent sync error:", error);
       setError("Error syncing to FreeAgent");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ===== ENHANCED DATA PROCESSING =====
-
+  // Data Processing Functions
   const processTransactionsForFreeAgent = (ebayTransactions) => {
     if (!ebayTransactions || ebayTransactions.length === 0) {
-      return { freeAgentEntries: [] };
+      return { freeAgentEntries: [], creditCount: 0, debitCount: 0 };
     }
 
     const freeAgentEntries = ebayTransactions.map((txn) => {
@@ -398,27 +550,24 @@ const EbayApiAccountingHelper = ({ user }) => {
       return {
         date: new Date(txn.transactionDate).toISOString().split("T")[0],
         amount: displayAmount,
-        // Use enhanced description
         description: generateEnhancedTransactionDescription(txn),
         category: determineTransactionCategory(txn),
         reference: txn.transactionId,
-        // Store actual transaction type for proper FreeAgent sync
         transactionType: isDebit ? 'debit' : 'credit',
         isDebit: isDebit,
         originalAmount: originalAmount
       };
     });
 
-    return { freeAgentEntries };
+    return { 
+      freeAgentEntries,
+      totalAmount: freeAgentEntries.reduce((sum, entry) => sum + entry.amount, 0),
+      creditCount: freeAgentEntries.filter(e => e.transactionType === 'credit').length,
+      debitCount: freeAgentEntries.filter(e => e.transactionType === 'debit').length
+    };
   };
 
   const determineIfDebit = (txn, amount) => {
-    // Debits (money going OUT of your account):
-    // - Payouts/Withdrawals (money going to your bank)
-    // - Fees charged by eBay 
-    // - Refunds to customers
-    // - Any negative amounts
-    
     if (txn.bookingEntry === 'DEBIT' || 
         txn.transactionType === 'WITHDRAWAL' ||
         txn.transactionType === 'NON_SALE_CHARGE' ||
@@ -426,9 +575,6 @@ const EbayApiAccountingHelper = ({ user }) => {
         amount < 0) {
       return true;
     }
-    
-    // Credits (money coming INTO your account):
-    // - Sales
     return false;
   };
 
@@ -442,11 +588,9 @@ const EbayApiAccountingHelper = ({ user }) => {
       'ADJUSTMENT': 'Adjustments',
       'TRANSFER': 'Transfers'
     };
-
     return categoryMap[txn.transactionType] || 'Other';
   };
 
-  // UK Date formatting function
   const formatUKDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-GB', {
@@ -455,8 +599,6 @@ const EbayApiAccountingHelper = ({ user }) => {
       year: 'numeric'
     });
   };
-
-  // ===== EXPORT FUNCTIONS =====
 
   const exportToCsv = () => {
     if (!processedData) return;
@@ -480,8 +622,158 @@ const EbayApiAccountingHelper = ({ user }) => {
     URL.revokeObjectURL(url);
   };
 
-  // ===== UI COMPONENTS =====
+  // UI Components
+  const BankAccountSelector = () => {
+    if (!connections.freeagent.isConnected || bankAccounts.length === 0) return null;
 
+    return (
+      <div className="bg-gray-50 rounded-lg p-4 mt-4">
+        <h4 className="font-medium text-gray-900 mb-3">Select Bank Account</h4>
+        <p className="text-sm text-gray-600 mb-3">
+          Choose which FreeAgent bank account to sync your eBay transactions to:
+        </p>
+        <div className="space-y-2">
+          {bankAccounts.map((account) => (
+            <label key={account.id} className="flex items-center space-x-3 p-2 border rounded-md hover:bg-white cursor-pointer">
+              <input
+                type="radio"
+                name="bankAccount"
+                value={account.apiUrl}
+                checked={selectedBankAccount === account.apiUrl}
+                onChange={(e) => handleBankAccountChange(e.target.value)}
+                className="h-4 w-4 text-blue-600"
+              />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-900">{account.name}</span>
+                  <span className="text-sm text-gray-500">
+                    {account.currency} • {account.type}
+                  </span>
+                </div>
+                {account.accountNumber && (
+                  <div className="text-xs text-gray-400 mt-1">
+                    Account: {account.accountNumber} | Sort: {account.sortCode}
+                  </div>
+                )}
+                {account.currentBalance !== undefined && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    Current Balance: {account.currency}{account.currentBalance}
+                  </div>
+                )}
+              </div>
+            </label>
+          ))}
+        </div>
+        {!selectedBankAccount && (
+          <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-md">
+            <p className="text-amber-800 text-sm">
+              ⚠️ Please select a bank account before syncing transactions
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const EbayContactStatus = () => {
+    if (!connections.freeagent.isConnected) return null;
+
+    return (
+      <div className="bg-gray-50 rounded-lg p-4 mt-4">
+        <h4 className="font-medium text-gray-900 mb-2">eBay Contact in FreeAgent</h4>
+        {ebayContact ? (
+          <div className="flex items-center text-sm text-gray-600">
+            <svg className="h-4 w-4 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium">{ebayContact.name}</span>
+            <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+              Auto-created
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center text-sm text-gray-500">
+            <svg className="h-4 w-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            <span>eBay contact will be created automatically when needed</span>
+          </div>
+        )}
+        <p className="text-xs text-gray-500 mt-2">
+          All eBay transactions will be linked to this contact for better organization in FreeAgent
+        </p>
+      </div>
+    );
+  };
+
+  const SetupProgress = () => {
+    const steps = [
+      {
+        name: "Connect eBay",
+        completed: setupStatus.ebayConnected,
+        description: "Link your eBay account"
+      },
+      {
+        name: "Connect FreeAgent", 
+        completed: setupStatus.freeagentConnected,
+        description: "Link your FreeAgent account"
+      },
+      {
+        name: "Select Bank Account",
+        completed: setupStatus.bankAccountSelected,
+        description: "Choose destination account"
+      }
+    ];
+
+    return (
+      <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border border-blue-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Setup Progress</h3>
+        <div className="space-y-3">
+          {steps.map((step, index) => (
+            <div key={step.name} className="flex items-center">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium mr-4 ${
+                step.completed 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-gray-100 text-gray-600'
+              }`}>
+                {step.completed ? (
+                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  index + 1
+                )}
+              </div>
+              <div className="flex-1">
+                <div className={`font-medium ${step.completed ? 'text-green-700' : 'text-gray-700'}`}>
+                  {step.name}
+                </div>
+                <div className="text-sm text-gray-500">{step.description}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        {setupStatus.readyToSync && (
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center">
+              <svg className="h-5 w-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <p className="text-green-800 font-medium">Ready to Sync!</p>
+                <p className="text-green-600 text-sm">
+                  All setup complete. You can now fetch and sync transactions.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Render Functions
   const renderSetupTab = () => (
     <div className="space-y-8">
       {/* eBay API Setup */}
@@ -540,12 +832,13 @@ const EbayApiAccountingHelper = ({ user }) => {
                 Connect Your eBay Account
               </h4>
               <p className="text-blue-800 text-sm mb-4">
-                Securely connect your eBay account to fetch transaction data with enhanced descriptions.
+                Securely connect your eBay account to fetch transaction data with enhanced descriptions. Each user connects their own account.
               </p>
               <ul className="text-blue-700 text-sm space-y-1">
                 <li>• Enhanced transaction descriptions using eBay's rich data</li>
                 <li>• Uses transaction memos and reference information</li>
                 <li>• Production eBay API integration with RFC 9421 signatures</li>
+                <li>• Individual account isolation - your data stays private</li>
               </ul>
             </div>
             <button
@@ -596,11 +889,15 @@ const EbayApiAccountingHelper = ({ user }) => {
                     FreeAgent Connected Successfully
                   </p>
                   <p className="text-green-600 text-sm">
-                    Ready to sync transactions with enhanced descriptions
+                    Ready to sync transactions with enhanced descriptions and bank account selection
                   </p>
                 </div>
               </div>
             </div>
+            
+            <BankAccountSelector />
+            <EbayContactStatus />
+
             <button
               onClick={disconnectFreeAgent}
               className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
@@ -615,11 +912,13 @@ const EbayApiAccountingHelper = ({ user }) => {
                 Connect Your FreeAgent Account
               </h4>
               <p className="text-green-800 text-sm mb-4">
-                Connect FreeAgent to automatically create accounting entries with meaningful descriptions.
+                Connect FreeAgent to automatically create accounting entries with meaningful descriptions and proper bank account mapping.
               </p>
               <ul className="text-green-700 text-sm space-y-1">
                 <li>• "Seller initiated payout - Payout #12345"</li>
                 <li>• "Item sold via Buy It Now - Order #67890"</li>
+                <li>• Choose which bank account to sync to</li>
+                <li>• Automatic eBay contact creation for organization</li>
                 <li>• Secure OAuth connection</li>
               </ul>
             </div>
@@ -634,12 +933,14 @@ const EbayApiAccountingHelper = ({ user }) => {
         )}
       </div>
 
-      {/* System Status */}
+      {!setupStatus.readyToSync && <SetupProgress />}
+
+      {/* Enhanced System Status */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           System Status
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-blue-50 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -660,6 +961,17 @@ const EbayApiAccountingHelper = ({ user }) => {
               <div className="h-3 w-3 bg-green-400 rounded-full"></div>
             </div>
           </div>
+          <div className="bg-green-50 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-green-900">Setup Complete</p>
+                <p className="text-green-700 text-sm">
+                  {setupStatus.readyToSync ? "Ready to sync" : "Setup required"}
+                </p>
+              </div>
+              <div className={`h-3 w-3 rounded-full ${setupStatus.readyToSync ? 'bg-green-400' : 'bg-yellow-400'}`}></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -667,7 +979,6 @@ const EbayApiAccountingHelper = ({ user }) => {
 
   const renderImportTab = () => (
     <div className="space-y-6">
-      {/* Date Range Selection */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           Select Date Range
@@ -742,10 +1053,19 @@ const EbayApiAccountingHelper = ({ user }) => {
             <>
               <button
                 onClick={syncToFreeAgent}
-                disabled={!connections.freeagent.isConnected || isLoading}
-                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                disabled={!setupStatus.readyToSync || isLoading}
+                className={`px-6 py-2 rounded-md transition-colors flex items-center space-x-2 ${
+                  setupStatus.readyToSync 
+                    ? 'bg-green-600 text-white hover:bg-green-700' 
+                    : 'bg-gray-400 text-white cursor-not-allowed'
+                }`}
               >
-                Sync to FreeAgent ({processedData.freeAgentEntries.length})
+                <span>Enhanced Sync to FreeAgent ({processedData.freeAgentEntries.length})</span>
+                {setupStatus.readyToSync && (
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                )}
               </button>
 
               <button
@@ -758,24 +1078,54 @@ const EbayApiAccountingHelper = ({ user }) => {
           )}
         </div>
 
-        {/* Connection Requirements */}
-        {(!connections.ebay.isConnected ||
-          !connections.freeagent.isConnected) && (
+        {!setupStatus.readyToSync && (
           <div className="mt-6 bg-yellow-50 rounded-lg p-4">
             <h4 className="font-medium text-yellow-900 mb-2">
-              Connection Required
+              Setup Required
             </h4>
             <p className="text-yellow-800 text-sm">
-              {!connections.ebay.isConnected &&
-              !connections.freeagent.isConnected
-                ? "Connect both eBay and FreeAgent to sync transactions."
-                : !connections.ebay.isConnected
-                ? "Connect eBay to fetch transactions."
-                : "Connect FreeAgent to sync transactions."}
+              {(() => {
+                const missing = [];
+                if (!connections.ebay.isConnected) missing.push("Connect eBay");
+                if (!connections.freeagent.isConnected) missing.push("Connect FreeAgent");
+                if (!selectedBankAccount) missing.push("Select bank account");
+                return `Please complete: ${missing.join(", ")}.`;
+              })()}
             </p>
           </div>
         )}
+
+        {setupStatus.readyToSync && selectedBankAccount && (
+          <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center">
+              <svg className="h-5 w-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <p className="text-green-800 font-medium">Ready to Sync</p>
+                <p className="text-green-600 text-sm">
+                  Transactions will sync to: <strong>{bankAccounts.find(acc => acc.apiUrl === selectedBankAccount)?.name}</strong>
+                  {ebayContact && <span> • Linked to <strong>{ebayContact.name}</strong></span>}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {syncStatus && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <svg className="h-5 w-5 text-blue-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <p className="text-blue-800 font-medium">Sync Status</p>
+              <p className="text-blue-700 text-sm">{syncStatus}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -824,8 +1174,8 @@ const EbayApiAccountingHelper = ({ user }) => {
                       <span
                         className={
                           determineIfDebit(txn, parseFloat(txn.amount?.value || 0))
-                            ? "text-red-600"  // Debits are red (money going out)
-                            : "text-green-600" // Credits are green (money coming in)
+                            ? "text-red-600"
+                            : "text-green-600"
                         }
                       >
                         {txn.amount?.currencyCode} {Math.abs(txn.amount?.value || 0)}
@@ -864,10 +1214,39 @@ const EbayApiAccountingHelper = ({ user }) => {
             <h3 className="text-lg font-semibold text-gray-900">
               Enhanced FreeAgent Entries ({processedData.freeAgentEntries.length})
             </h3>
-            <div className="bg-green-100 px-3 py-1 rounded-full text-sm font-medium text-green-800">
-              Ready for Sync
+            <div className="flex items-center space-x-2">
+              <div className="bg-green-100 px-3 py-1 rounded-full text-sm font-medium text-green-800">
+                Ready for Enhanced Sync
+              </div>
+              {selectedBankAccount && (
+                <div className="bg-blue-100 px-3 py-1 rounded-full text-sm font-medium text-blue-800">
+                  → {bankAccounts.find(acc => acc.apiUrl === selectedBankAccount)?.name}
+                </div>
+              )}
             </div>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-blue-50 rounded-lg p-4">
+              <div className="text-2xl font-bold text-blue-600">
+                {processedData.freeAgentEntries.length}
+              </div>
+              <div className="text-blue-800 text-sm">Total Transactions</div>
+            </div>
+            <div className="bg-green-50 rounded-lg p-4">
+              <div className="text-2xl font-bold text-green-600">
+                {processedData.creditCount}
+              </div>
+              <div className="text-green-800 text-sm">Credits (Income)</div>
+            </div>
+            <div className="bg-red-50 rounded-lg p-4">
+              <div className="text-2xl font-bold text-red-600">
+                {processedData.debitCount}
+              </div>
+              <div className="text-red-800 text-sm">Debits (Fees/Refunds)</div>
+            </div>
+          </div>
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -948,7 +1327,6 @@ const EbayApiAccountingHelper = ({ user }) => {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Error Display */}
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
             <div className="flex">
@@ -982,7 +1360,6 @@ const EbayApiAccountingHelper = ({ user }) => {
           </div>
         )}
 
-        {/* Loading Overlay */}
         {isLoading && (
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
             <div className="flex items-center">
@@ -1013,7 +1390,6 @@ const EbayApiAccountingHelper = ({ user }) => {
           </div>
         )}
 
-        {/* Navigation Tabs */}
         <div className="mb-8">
           <nav className="flex space-x-8 justify-center">
             {[
@@ -1038,7 +1414,6 @@ const EbayApiAccountingHelper = ({ user }) => {
           </nav>
         </div>
 
-        {/* Tab Content */}
         <div className="tab-content">
           {activeTab === "setup" && renderSetupTab()}
           {activeTab === "import" && renderImportTab()}
@@ -1046,13 +1421,13 @@ const EbayApiAccountingHelper = ({ user }) => {
           {activeTab === "entries" && renderFreeAgentEntriesTab()}
         </div>
 
-        {/* Footer */}
+        {/* Enhanced Footer */}
         <div className="mt-16 text-center">
           <div className="bg-white rounded-xl border border-gray-200 p-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Enhanced Production Integration
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-gray-600">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-sm text-gray-600">
               <div className="flex flex-col items-center space-y-2">
                 <div className="text-2xl">🔗</div>
                 <div className="font-medium text-gray-900">eBay Connection</div>
@@ -1084,6 +1459,19 @@ const EbayApiAccountingHelper = ({ user }) => {
                 </div>
               </div>
               <div className="flex flex-col items-center space-y-2">
+                <div className="text-2xl">🏦</div>
+                <div className="font-medium text-gray-900">Bank Account</div>
+                <div
+                  className={`px-2 py-1 rounded text-xs ${
+                    selectedBankAccount
+                      ? "bg-green-100 text-green-800"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {selectedBankAccount ? "Selected" : "Not Selected"}
+                </div>
+              </div>
+              <div className="flex flex-col items-center space-y-2">
                 <div className="text-2xl">📊</div>
                 <div className="font-medium text-gray-900">Enhanced Data</div>
                 <div className="text-gray-600">
@@ -1094,10 +1482,22 @@ const EbayApiAccountingHelper = ({ user }) => {
 
             <div className="mt-6 p-4 bg-blue-50 rounded-lg">
               <p className="text-xs text-blue-800">
-                <strong>Enhanced Processing:</strong> Now uses eBay's transactionMemo field 
-                and reference data to create meaningful descriptions like "Seller initiated payout - Payout #12345" 
-                instead of generic "eBay WITHDRAWAL: Transaction".
+                <strong>New Features:</strong> Bank account selection, automatic eBay contact creation, 
+                and enhanced transaction descriptions. Each user connects their own eBay account for complete data isolation.
               </p>
+            </div>
+
+            <div className="mt-4">
+              <div className="flex items-center justify-center space-x-2">
+                <span className="text-sm font-medium text-gray-700">Setup Status:</span>
+                <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  setupStatus.readyToSync
+                    ? "bg-green-100 text-green-800"
+                    : "bg-yellow-100 text-yellow-800"
+                }`}>
+                  {setupStatus.readyToSync ? "Ready to Sync" : "Setup Required"}
+                </div>
+              </div>
             </div>
           </div>
         </div>
