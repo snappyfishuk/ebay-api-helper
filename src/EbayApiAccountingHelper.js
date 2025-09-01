@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import AccountInfo from "./components/AccountInfo";
 
 const EbayApiAccountingHelper = ({ user }) => {
   // Connection Status State
@@ -1633,6 +1634,7 @@ const EbayApiAccountingHelper = ({ user }) => {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <AccountInfo />
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
             <div className="flex">
