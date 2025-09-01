@@ -1,4 +1,4 @@
-// Create a new component: src/components/AccountInfo.js
+// Updated AccountInfo.js with better error handling and debugging
 
 import React, { useState, useEffect } from "react";
 
@@ -22,46 +22,195 @@ const AccountInfo = () => {
 
   const fetchAccountInfo = async () => {
     try {
-      const promises = [];
+      console.log("🔍 Fetching account info...");
 
-      // Fetch eBay account info if connected
-      promises.push(
-        fetch(`${process.env.REACT_APP_API_URL}/api/ebay/account-info`, {
-          headers: getAuthHeaders(),
-          credentials: "include",
-        }).then((res) => (res.ok ? res.json() : null))
-      );
+      // Try to fetch basic user info first to see if auth works
+      let appUserInfo = null;
 
-      // Fetch FreeAgent account info if connected
-      promises.push(
-        fetch(`${process.env.REACT_APP_API_URL}/api/freeagent/account-info`, {
-          headers: getAuthHeaders(),
-          credentials: "include",
-        }).then((res) => (res.ok ? res.json() : null))
-      );
+      // Method 1: Try getting user info from /api/auth/me (more likely to exist)
+      try {
+        const userResponse = await fetch(
+          `${process.env.REACT_APP_API_URL}/api/auth/me`,
+          {
+            headers: getAuthHeaders(),
+            credentials: "include",
+          }
+        );
 
-      const [ebayResult, freeagentResult] = await Promise.all(promises);
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          appUserInfo = {
+            userEmail:
+              userData.data?.user?.email || userData.user?.email || "Unknown",
+            userFullName:
+              `${
+                userData.data?.user?.firstName || userData.user?.firstName || ""
+              } ${
+                userData.data?.user?.lastName || userData.user?.lastName || ""
+              }`.trim() || "Unknown User",
+          };
+          console.log("✅ Got user info:", appUserInfo);
+        }
+      } catch (e) {
+        console.log(
+          "⚠️ Could not fetch user info from /api/auth/me:",
+          e.message
+        );
+      }
 
+      // Method 2: Try the new account-info endpoints (may not exist yet)
+      let ebayAccountInfo = null;
+      let freeagentAccountInfo = null;
+
+      try {
+        const ebayResponse = await fetch(
+          `${process.env.REACT_APP_API_URL}/api/ebay/account-info`,
+          {
+            headers: getAuthHeaders(),
+            credentials: "include",
+          }
+        );
+
+        if (ebayResponse.ok) {
+          const ebayData = await ebayResponse.json();
+          ebayAccountInfo = ebayData.data?.ebay;
+          if (!appUserInfo && ebayData.data?.app) {
+            appUserInfo = ebayData.data.app;
+          }
+          console.log("✅ Got eBay account info:", ebayAccountInfo);
+        } else {
+          console.log(
+            "⚠️ eBay account-info endpoint not available (404/405 expected)"
+          );
+        }
+      } catch (e) {
+        console.log("⚠️ Could not fetch eBay account info:", e.message);
+      }
+
+      try {
+        const freeagentResponse = await fetch(
+          `${process.env.REACT_APP_API_URL}/api/freeagent/account-info`,
+          {
+            headers: getAuthHeaders(),
+            credentials: "include",
+          }
+        );
+
+        if (freeagentResponse.ok) {
+          const freeagentData = await freeagentResponse.json();
+          freeagentAccountInfo = freeagentData.data?.freeagent;
+          if (!appUserInfo && freeagentData.data?.app) {
+            appUserInfo = freeagentData.data.app;
+          }
+          console.log("✅ Got FreeAgent account info:", freeagentAccountInfo);
+        } else {
+          console.log(
+            "⚠️ FreeAgent account-info endpoint not available (404/405 expected)"
+          );
+        }
+      } catch (e) {
+        console.log("⚠️ Could not fetch FreeAgent account info:", e.message);
+      }
+
+      // Method 3: Fallback to existing connection-status endpoints
+      if (!ebayAccountInfo) {
+        try {
+          const ebayStatus = await fetch(
+            `${process.env.REACT_APP_API_URL}/api/ebay/connection-status`,
+            {
+              headers: getAuthHeaders(),
+              credentials: "include",
+            }
+          );
+
+          if (ebayStatus.ok) {
+            const ebayData = await ebayStatus.json();
+            if (ebayData.data?.isConnected || ebayData.isConnected) {
+              ebayAccountInfo = {
+                userId: ebayData.data?.userId || ebayData.userId || "Unknown",
+                environment:
+                  ebayData.data?.environment ||
+                  ebayData.environment ||
+                  "production",
+                connectedAt:
+                  ebayData.data?.connectedAt ||
+                  ebayData.connectedAt ||
+                  new Date(),
+                username: null, // Not available from connection-status
+              };
+              console.log("✅ Got eBay connection status:", ebayAccountInfo);
+            }
+          }
+        } catch (e) {
+          console.log("⚠️ Could not fetch eBay connection status:", e.message);
+        }
+      }
+
+      if (!freeagentAccountInfo) {
+        try {
+          const freeagentStatus = await fetch(
+            `${process.env.REACT_APP_API_URL}/api/freeagent/connection-status`,
+            {
+              headers: getAuthHeaders(),
+              credentials: "include",
+            }
+          );
+
+          if (freeagentStatus.ok) {
+            const freeagentData = await freeagentStatus.json();
+            if (freeagentData.data?.isConnected || freeagentData.isConnected) {
+              freeagentAccountInfo = {
+                companyId:
+                  freeagentData.data?.companyId ||
+                  freeagentData.companyId ||
+                  "Unknown",
+                connectedAt:
+                  freeagentData.data?.connectedAt ||
+                  freeagentData.connectedAt ||
+                  new Date(),
+                environment: "production",
+              };
+              console.log(
+                "✅ Got FreeAgent connection status:",
+                freeagentAccountInfo
+              );
+            }
+          }
+        } catch (e) {
+          console.log(
+            "⚠️ Could not fetch FreeAgent connection status:",
+            e.message
+          );
+        }
+      }
+
+      // Update state with whatever we found
       setAccountInfo({
-        app: ebayResult?.data?.app || freeagentResult?.data?.app,
-        ebay: ebayResult?.data?.ebay || null,
-        freeagent: freeagentResult?.data?.freeagent || null,
+        app: appUserInfo,
+        ebay: ebayAccountInfo,
+        freeagent: freeagentAccountInfo,
         loading: false,
         error: null,
       });
+
+      console.log("🎯 Final account info state:", {
+        app: appUserInfo,
+        ebay: ebayAccountInfo,
+        freeagent: freeagentAccountInfo,
+      });
     } catch (error) {
-      console.error("Error fetching account info:", error);
+      console.error("❌ Error fetching account info:", error);
       setAccountInfo((prev) => ({
         ...prev,
         loading: false,
-        error: "Failed to load account information",
+        error: "Failed to load account information: " + error.message,
       }));
     }
   };
 
   if (accountInfo.loading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
         <div className="animate-pulse">
           <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
           <div className="h-3 bg-gray-200 rounded w-1/2"></div>
@@ -72,8 +221,14 @@ const AccountInfo = () => {
 
   if (accountInfo.error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-600">{accountInfo.error}</p>
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+        <p className="text-red-600 text-sm">{accountInfo.error}</p>
+        <button
+          onClick={fetchAccountInfo}
+          className="mt-2 text-sm text-red-800 hover:text-red-600 font-medium"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
@@ -81,7 +236,7 @@ const AccountInfo = () => {
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">
-        🔗 Connected Accounts
+        Connected Accounts
       </h3>
 
       <div className="space-y-4">
