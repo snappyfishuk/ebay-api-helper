@@ -29,16 +29,85 @@ const EbayApiAccountingHelper = ({ user }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [transactions, setTransactions] = useState([]);
-  const [selectedDateRange, setSelectedDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0],
-    endDate: new Date().toISOString().split("T")[0],
+  const [selectedDateRange, setSelectedDateRange] = useState(() => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    return {
+      startDate: thirtyDaysAgo.toISOString().split("T")[0],
+      endDate: today.toISOString().split("T")[0],
+    };
   });
 
   // Processing State
   const [processedData, setProcessedData] = useState(null);
   const [syncStatus, setSyncStatus] = useState(null);
+
+  // VALIDATION FUNCTIONS - MOVED TO TOP TO AVOID HOISTING ISSUES
+  const validateDateRange = (startDate, endDate) => {
+    const today = new Date().toISOString().split("T")[0];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const todayDate = new Date(today);
+
+    if (start > end) {
+      return { isValid: false, error: "Start date cannot be after end date" };
+    }
+
+    if (start > todayDate || end > todayDate) {
+      return { isValid: false, error: "Dates cannot be in the future" };
+    }
+
+    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    if (daysDiff > 90) {
+      return { isValid: false, error: "Date range cannot exceed 90 days" };
+    }
+
+    return { isValid: true };
+  };
+
+  const handleStartDateChange = (e) => {
+    const newStartDate = e.target.value;
+    const validation = validateDateRange(
+      newStartDate,
+      selectedDateRange.endDate
+    );
+
+    if (!validation.isValid) {
+      setError(validation.error);
+      return;
+    }
+
+    setError(null);
+    setSelectedDateRange((prev) => ({ ...prev, startDate: newStartDate }));
+  };
+
+  const handleEndDateChange = (e) => {
+    const newEndDate = e.target.value;
+    const validation = validateDateRange(
+      selectedDateRange.startDate,
+      newEndDate
+    );
+
+    if (!validation.isValid) {
+      setError(validation.error);
+      return;
+    }
+
+    setError(null);
+    setSelectedDateRange((prev) => ({ ...prev, endDate: newEndDate }));
+  };
+
+  const setDatePreset = (days) => {
+    const today = new Date();
+    const pastDate = new Date(today.getTime() - days * 24 * 60 * 60 * 1000);
+
+    setSelectedDateRange({
+      startDate: pastDate.toISOString().split("T")[0],
+      endDate: today.toISOString().split("T")[0],
+    });
+    setError(null);
+  };
 
   // useEffect Hooks
   useEffect(() => {
@@ -455,9 +524,19 @@ const EbayApiAccountingHelper = ({ user }) => {
     }
   };
 
+  // FIXED TRANSACTION FETCHING
   const fetchTransactions = async () => {
     if (!connections.ebay.isConnected) {
       setError("Please connect to eBay first");
+      return;
+    }
+
+    const validation = validateDateRange(
+      selectedDateRange.startDate,
+      selectedDateRange.endDate
+    );
+    if (!validation.isValid) {
+      setError(validation.error);
       return;
     }
 
@@ -465,6 +544,10 @@ const EbayApiAccountingHelper = ({ user }) => {
     setError(null);
 
     try {
+      console.log(
+        `Fetching transactions from ${selectedDateRange.startDate} to ${selectedDateRange.endDate}`
+      );
+
       const response = await fetch(
         `${process.env.REACT_APP_API_URL}/api/ebay/transactions?startDate=${selectedDateRange.startDate}&endDate=${selectedDateRange.endDate}`,
         {
@@ -477,21 +560,18 @@ const EbayApiAccountingHelper = ({ user }) => {
 
       if (response.ok) {
         setTransactions(data.data?.transactions || []);
-
-        // FIXED: Pass selectedBankAccount to processing function
         const processed = processTransactionsForFreeAgent(
           data.data?.transactions || [],
-          selectedBankAccount // Pass the selected bank account
+          selectedBankAccount
         );
         setProcessedData(processed);
-
         setSyncStatus(
           `Fetched ${
             data.data?.transactions?.length || 0
           } transactions from eBay ${data.data?.environment || "production"}`
         );
 
-        console.log(`📊 Processed data:`, {
+        console.log(`Processed data:`, {
           total: processed.freeAgentEntries.length,
           credits: processed.creditCount,
           debits: processed.debitCount,
@@ -509,6 +589,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     }
   };
 
+  // FIXED FREEAGENT SYNC
   const syncToFreeAgent = async () => {
     if (!connections.freeagent.isConnected || !processedData) {
       setError("Please connect to FreeAgent and fetch transactions first");
@@ -525,18 +606,16 @@ const EbayApiAccountingHelper = ({ user }) => {
 
     try {
       console.log(
-        `🚀 Syncing ${processedData.freeAgentEntries.length} transactions to bank account: ${selectedBankAccount}`
+        `Syncing ${processedData.freeAgentEntries.length} transactions to bank account: ${selectedBankAccount}`
       );
 
-      // FIXED: Send transactions in the correct format without contact field
       const transactionsToSync = processedData.freeAgentEntries.map(
         (entry) => ({
-          dated_on: entry.dated_on, // Use correct field name
-          amount: entry.amount, // Already signed correctly
+          dated_on: entry.dated_on,
+          amount: entry.amount,
           description: entry.description,
-          bank_account: entry.bank_account, // Already set to selectedBankAccount
+          bank_account: entry.bank_account,
           reference: entry.reference,
-          // NO contact field
         })
       );
 
@@ -559,7 +638,7 @@ const EbayApiAccountingHelper = ({ user }) => {
         const failedCount = data.data?.failed || 0;
         const total = data.data?.total || transactionsToSync.length;
 
-        const successMessage = `Sync completed!\n✅ Successfully created: ${successCount} transactions\n❌ Failed: ${failedCount} transactions\nSuccess rate: ${
+        const successMessage = `Sync completed!\nSuccessfully created: ${successCount} transactions\nFailed: ${failedCount} transactions\nSuccess rate: ${
           data.data?.summary?.successRate ||
           ((successCount / total) * 100).toFixed(1) + "%"
         }`;
@@ -576,7 +655,6 @@ const EbayApiAccountingHelper = ({ user }) => {
           }`
         );
 
-        // Clear data after successful sync
         if (successCount > 0) {
           setProcessedData(null);
           setTransactions([]);
@@ -593,7 +671,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     }
   };
 
-  // Data Processing Functions
+  // FIXED DATA PROCESSING
   const processTransactionsForFreeAgent = (
     ebayTransactions,
     selectedBankAccount
@@ -603,7 +681,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     }
 
     console.log(
-      `🔄 Processing ${ebayTransactions.length} transactions for FreeAgent (FIXED - NO CONTACT)...`
+      `Processing ${ebayTransactions.length} transactions for FreeAgent (FIXED - NO CONTACT)...`
     );
 
     const freeAgentEntries = ebayTransactions
@@ -612,30 +690,25 @@ const EbayApiAccountingHelper = ({ user }) => {
         const isDebit = determineIfDebit(txn, originalAmount);
         const displayAmount = Math.abs(originalAmount);
 
-        // FIXED FORMAT FOR FREEAGENT BANK TRANSACTIONS
         return {
-          // FreeAgent API fields (what gets sent to API)
-          dated_on: new Date(txn.transactionDate).toISOString().split("T")[0], // Changed from 'date' to 'dated_on'
-          amount: isDebit ? -displayAmount : displayAmount, // Use signed amount for FreeAgent
+          dated_on: new Date(txn.transactionDate).toISOString().split("T")[0],
+          amount: isDebit ? -displayAmount : displayAmount,
           description: generateEnhancedTransactionDescription(txn).substring(
             0,
             255
-          ), // Limit description length
-          bank_account: selectedBankAccount, // Required: bank account URL
+          ),
+          bank_account: selectedBankAccount,
           reference: txn.transactionId
             ? txn.transactionId.toString().substring(0, 50)
-            : undefined, // Optional reference
-          // REMOVED: contact field - this was causing "Resource not found" error
-
-          // Additional fields for display/tracking (not sent to API)
+            : undefined,
           category: determineTransactionCategory(txn),
           transactionType: isDebit ? "debit" : "credit",
           isDebit: isDebit,
           originalAmount: originalAmount,
-          displayAmount: displayAmount, // For UI display
+          displayAmount: displayAmount,
         };
       })
-      .filter((txn) => txn.amount !== 0); // Filter out zero-amount transactions
+      .filter((txn) => txn.amount !== 0);
 
     const creditCount = freeAgentEntries.filter(
       (e) => e.transactionType === "credit"
@@ -645,7 +718,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     ).length;
 
     console.log(
-      `✅ Processed ${freeAgentEntries.length} transactions: ${creditCount} credits, ${debitCount} debits`
+      `Processed ${freeAgentEntries.length} transactions: ${creditCount} credits, ${debitCount} debits`
     );
 
     return {
@@ -656,7 +729,7 @@ const EbayApiAccountingHelper = ({ user }) => {
       ),
       creditCount,
       debitCount,
-      netAmount: freeAgentEntries.reduce((sum, entry) => sum + entry.amount, 0), // Net amount considering debits/credits
+      netAmount: freeAgentEntries.reduce((sum, entry) => sum + entry.amount, 0),
     };
   };
 
@@ -701,7 +774,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     const csvContent = processedData.freeAgentEntries
       .map(
         (entry) =>
-          `${entry.date},${entry.amount},"${entry.description}","${entry.category}"`
+          `${entry.dated_on},${entry.amount},"${entry.description}","${entry.category}"`
       )
       .join("\n");
 
@@ -769,7 +842,7 @@ const EbayApiAccountingHelper = ({ user }) => {
         {!selectedBankAccount && (
           <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-md">
             <p className="text-amber-800 text-sm">
-              ⚠️ Please select a bank account before syncing transactions
+              Please select a bank account before syncing transactions
             </p>
           </div>
         )}
@@ -921,7 +994,6 @@ const EbayApiAccountingHelper = ({ user }) => {
   // Render Functions
   const renderSetupTab = () => (
     <div className="space-y-8">
-      {/* eBay API Setup */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-gray-900">
@@ -979,8 +1051,7 @@ const EbayApiAccountingHelper = ({ user }) => {
               </h4>
               <p className="text-blue-800 text-sm mb-4">
                 Securely connect your eBay account to fetch transaction data
-                with enhanced descriptions. Each user connects their own
-                account.
+                with enhanced descriptions.
               </p>
               <ul className="text-blue-700 text-sm space-y-1">
                 <li>
@@ -1006,7 +1077,6 @@ const EbayApiAccountingHelper = ({ user }) => {
         )}
       </div>
 
-      {/* FreeAgent API Setup */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-gray-900">
@@ -1043,16 +1113,13 @@ const EbayApiAccountingHelper = ({ user }) => {
                     FreeAgent Connected Successfully
                   </p>
                   <p className="text-green-600 text-sm">
-                    Ready to sync transactions with enhanced descriptions and
-                    bank account selection
+                    Ready to sync transactions with enhanced descriptions
                   </p>
                 </div>
               </div>
             </div>
-
             <BankAccountSelector />
             <EbayContactStatus />
-
             <button
               onClick={disconnectFreeAgent}
               className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
@@ -1068,7 +1135,7 @@ const EbayApiAccountingHelper = ({ user }) => {
               </h4>
               <p className="text-green-800 text-sm mb-4">
                 Connect FreeAgent to automatically create accounting entries
-                with meaningful descriptions and proper bank account mapping.
+                with meaningful descriptions.
               </p>
               <ul className="text-green-700 text-sm space-y-1">
                 <li>• "Seller initiated payout - Payout #12345"</li>
@@ -1091,7 +1158,6 @@ const EbayApiAccountingHelper = ({ user }) => {
 
       {!setupStatus.readyToSync && <SetupProgress />}
 
-      {/* Enhanced System Status */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           System Status
@@ -1139,12 +1205,35 @@ const EbayApiAccountingHelper = ({ user }) => {
     </div>
   );
 
+  // FIXED IMPORT TAB WITH DATE VALIDATION
   const renderImportTab = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           Select Date Range
         </h3>
+
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            onClick={() => setDatePreset(7)}
+            className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+          >
+            Last 7 days
+          </button>
+          <button
+            onClick={() => setDatePreset(30)}
+            className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+          >
+            Last 30 days
+          </button>
+          <button
+            onClick={() => setDatePreset(90)}
+            className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+          >
+            Last 90 days
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1154,12 +1243,8 @@ const EbayApiAccountingHelper = ({ user }) => {
               type="date"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={selectedDateRange.startDate}
-              onChange={(e) =>
-                setSelectedDateRange((prev) => ({
-                  ...prev,
-                  startDate: e.target.value,
-                }))
-              }
+              onChange={handleStartDateChange}
+              max={new Date().toISOString().split("T")[0]}
             />
           </div>
           <div>
@@ -1170,12 +1255,9 @@ const EbayApiAccountingHelper = ({ user }) => {
               type="date"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={selectedDateRange.endDate}
-              onChange={(e) =>
-                setSelectedDateRange((prev) => ({
-                  ...prev,
-                  endDate: e.target.value,
-                }))
-              }
+              onChange={handleEndDateChange}
+              max={new Date().toISOString().split("T")[0]}
+              min={selectedDateRange.startDate}
             />
           </div>
         </div>
@@ -1240,7 +1322,6 @@ const EbayApiAccountingHelper = ({ user }) => {
                   </svg>
                 )}
               </button>
-
               <button
                 onClick={exportToCsv}
                 className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
@@ -1486,7 +1567,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                 {processedData.freeAgentEntries.map((entry, index) => (
                   <tr key={index}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatUKDate(entry.date)}
+                      {formatUKDate(entry.dated_on)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
                       <div
@@ -1518,7 +1599,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                           entry.isDebit ? "text-red-600" : "text-green-600"
                         }
                       >
-                        {entry.isDebit ? "-" : "+"}£{entry.amount}
+                        {entry.isDebit ? "-" : "+"}£{Math.abs(entry.amount)}
                       </span>
                     </td>
                   </tr>
@@ -1639,7 +1720,6 @@ const EbayApiAccountingHelper = ({ user }) => {
           {activeTab === "entries" && renderFreeAgentEntriesTab()}
         </div>
 
-        {/* Enhanced Footer */}
         <div className="mt-16 text-center">
           <div className="bg-white rounded-xl border border-gray-200 p-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
