@@ -589,7 +589,6 @@ const EbayApiAccountingHelper = ({ user }) => {
     }
   };
 
-  // FIXED FREEAGENT SYNC
   const syncToFreeAgent = async () => {
     if (!connections.freeagent.isConnected || !processedData) {
       setError("Please connect to FreeAgent and fetch transactions first");
@@ -605,67 +604,75 @@ const EbayApiAccountingHelper = ({ user }) => {
     setError(null);
 
     try {
-      console.log(
-        `Syncing ${processedData.freeAgentEntries.length} transactions to bank account: ${selectedBankAccount}`
-      );
+      // Get bank account ID from the full URL
+      const bankAccountId = selectedBankAccount.split("/").pop();
 
-      const transactionsToSync = processedData.freeAgentEntries.map(
-        (entry) => ({
+      // Convert processed data to the new statement upload format
+      const syncData = {
+        transactions: processedData.freeAgentEntries.map((entry) => ({
           dated_on: entry.dated_on,
           amount: entry.amount,
           description: entry.description,
-          bank_account: entry.bank_account,
           reference: entry.reference,
-        })
-      );
+        })),
+        bankAccountId: bankAccountId, // Just the ID, not the full URL
+      };
 
+      console.log("Syncing with statement upload method:", syncData);
+
+      // Use the new statement upload endpoint instead of bank-transactions
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/freeagent/bank-transactions`,
+        `${process.env.REACT_APP_API_URL}/api/freeagent/upload-ebay-statement`,
         {
           method: "POST",
           headers: getAuthHeaders(),
           credentials: "include",
-          body: JSON.stringify({
-            transactions: transactionsToSync,
-          }),
+          body: JSON.stringify(syncData),
         }
       );
 
       const data = await response.json();
 
       if (response.ok) {
-        const successCount = data.data?.successful || 0;
-        const failedCount = data.data?.failed || 0;
-        const total = data.data?.total || transactionsToSync.length;
-
-        const successMessage = `Sync completed!\nSuccessfully created: ${successCount} transactions\nFailed: ${failedCount} transactions\nSuccess rate: ${
-          data.data?.summary?.successRate ||
-          ((successCount / total) * 100).toFixed(1) + "%"
-        }`;
-
-        alert(successMessage);
-
-        setSyncStatus(
-          `Enhanced sync completed! ${successCount} transactions created in ${
-            bankAccounts.find((acc) => acc.apiUrl === selectedBankAccount)
-              ?.name || "selected account"
-          }, ${failedCount} failed. Success rate: ${
-            data.data?.summary?.successRate ||
-            ((successCount / total) * 100).toFixed(1) + "%"
-          }`
+        const uploadedCount =
+          data.data?.uploadedCount || processedData.freeAgentEntries.length;
+        const selectedAccount = bankAccounts.find(
+          (acc) => acc.apiUrl === selectedBankAccount
         );
 
-        if (successCount > 0) {
-          setProcessedData(null);
-          setTransactions([]);
-        }
+        setSyncStatus(
+          `Statement upload successful! ${uploadedCount} transactions uploaded to ${
+            selectedAccount?.name || "selected account"
+          } using FreeAgent's statement import method.`
+        );
+
+        // Clear the processed data since sync is complete
+        setProcessedData(null);
       } else {
-        setError(data.message || "Failed to sync to FreeAgent");
-        console.error("Sync error:", data);
+        // Handle different error types
+        let errorMessage = "Sync failed";
+
+        if (data.status === "error") {
+          if (data.message?.includes("authentication")) {
+            errorMessage =
+              "FreeAgent authentication failed. Please reconnect your FreeAgent account.";
+          } else if (data.message?.includes("validation")) {
+            errorMessage =
+              "Invalid transaction data. Please check your transactions and try again.";
+          } else {
+            errorMessage = data.message || "Unknown sync error occurred";
+          }
+        }
+
+        setError(errorMessage);
+        setSyncStatus(null);
       }
     } catch (error) {
-      console.error("FreeAgent sync error:", error);
-      setError("Error syncing to FreeAgent: " + error.message);
+      console.error("Statement upload error:", error);
+      setError(
+        "Network error during sync. Please check your connection and try again."
+      );
+      setSyncStatus(null);
     } finally {
       setIsLoading(false);
     }
@@ -1305,7 +1312,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                 }`}
               >
                 <span>
-                  Enhanced Sync to FreeAgent (
+                  Upload Statement to FreeAgent (
                   {processedData.freeAgentEntries.length})
                 </span>
                 {setupStatus.readyToSync && (
