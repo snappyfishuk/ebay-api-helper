@@ -281,7 +281,8 @@ const AccountInfo = () => {
             <span className="font-medium text-yellow-900">eBay Account</span>
           </div>
 
-          {accountInfo.ebay ? (
+          {accountInfo.ebay &&
+          (accountInfo.ebay.userId || accountInfo.ebay.environment) ? (
             <div className="space-y-1 text-sm">
               <p className="text-yellow-800">
                 <strong>Status:</strong>
@@ -333,7 +334,9 @@ const AccountInfo = () => {
             </span>
           </div>
 
-          {accountInfo.freeagent ? (
+          {accountInfo.freeagent &&
+          (accountInfo.freeagent.companyId ||
+            accountInfo.freeagent.environment) ? (
             <div className="space-y-1 text-sm">
               <p className="text-green-800">
                 <strong>Status:</strong>
@@ -366,14 +369,22 @@ const AccountInfo = () => {
             <span className="text-gray-600">Sync Ready:</span>
             <span
               className={`px-3 py-1 rounded-full text-xs font-medium ${
-                accountInfo.ebay && accountInfo.freeagent
+                accountInfo.ebay &&
+                (accountInfo.ebay.userId || accountInfo.ebay.environment) &&
+                accountInfo.freeagent &&
+                (accountInfo.freeagent.companyId ||
+                  accountInfo.freeagent.environment)
                   ? "bg-green-100 text-green-800"
                   : "bg-yellow-100 text-yellow-800"
               }`}
             >
-              {accountInfo.ebay && accountInfo.freeagent
-                ? "✅ Ready to Sync"
-                : "⚠️ Connect Both Accounts"}
+              {accountInfo.ebay &&
+              (accountInfo.ebay.userId || accountInfo.ebay.environment) &&
+              accountInfo.freeagent &&
+              (accountInfo.freeagent.companyId ||
+                accountInfo.freeagent.environment)
+                ? "Ready to Sync"
+                : "Connect Both Accounts"}
             </span>
           </div>
         </div>
