@@ -32,6 +32,7 @@ const AccountInfo = () => {
       }
 
       // Get eBay info - try account-info first, fallback to connection-status
+      let ebaySuccess = false;
       try {
         const ebayRes = await fetch(
           `${process.env.REACT_APP_API_URL}/api/ebay/account-info`,
@@ -43,29 +44,38 @@ const AccountInfo = () => {
         if (ebayRes.ok) {
           const ebayData = await ebayRes.json();
           setEbay(ebayData.data?.ebay);
+          ebaySuccess = true;
         }
       } catch (e) {
-        // Fallback to connection-status
-        const ebayRes = await fetch(
-          `${process.env.REACT_APP_API_URL}/api/ebay/connection-status`,
-          {
-            headers: getAuthHeaders(),
-            credentials: "include",
+        // Network error
+      }
+
+      if (!ebaySuccess) {
+        try {
+          const ebayRes = await fetch(
+            `${process.env.REACT_APP_API_URL}/api/ebay/connection-status`,
+            {
+              headers: getAuthHeaders(),
+              credentials: "include",
+            }
+          );
+          if (ebayRes.ok) {
+            const ebayData = await ebayRes.json();
+            if (ebayData.data?.isConnected || ebayData.isConnected) {
+              setEbay({
+                userId: ebayData.data?.userId || ebayData.userId,
+                environment: ebayData.data?.environment || ebayData.environment,
+                connectedAt: ebayData.data?.connectedAt || ebayData.connectedAt,
+              });
+            }
           }
-        );
-        if (ebayRes.ok) {
-          const ebayData = await ebayRes.json();
-          if (ebayData.data?.isConnected || ebayData.isConnected) {
-            setEbay({
-              userId: ebayData.data?.userId || ebayData.userId,
-              environment: ebayData.data?.environment || ebayData.environment,
-              connectedAt: ebayData.data?.connectedAt || ebayData.connectedAt,
-            });
-          }
+        } catch (e) {
+          console.log("eBay connection-status failed:", e);
         }
       }
 
       // Get FreeAgent info - try account-info first, fallback to connection-status
+      let freeagentSuccess = false;
       try {
         const faRes = await fetch(
           `${process.env.REACT_APP_API_URL}/api/freeagent/account-info`,
@@ -77,25 +87,34 @@ const AccountInfo = () => {
         if (faRes.ok) {
           const faData = await faRes.json();
           setFreeagent(faData.data?.freeagent);
+          freeagentSuccess = true;
         }
       } catch (e) {
-        // Fallback to connection-status
-        const faRes = await fetch(
-          `${process.env.REACT_APP_API_URL}/api/freeagent/connection-status`,
-          {
-            headers: getAuthHeaders(),
-            credentials: "include",
+        console.log("FreeAgent account-info failed, trying fallback...");
+      }
+
+      // Always try fallback if account-info didn't work
+      if (!freeagentSuccess) {
+        try {
+          const faRes = await fetch(
+            `${process.env.REACT_APP_API_URL}/api/freeagent/connection-status`,
+            {
+              headers: getAuthHeaders(),
+              credentials: "include",
+            }
+          );
+          if (faRes.ok) {
+            const faData = await faRes.json();
+            if (faData.data?.isConnected || faData.isConnected) {
+              setFreeagent({
+                companyId: faData.data?.companyId || faData.companyId,
+                connectedAt: faData.data?.connectedAt || faData.connectedAt,
+                environment: "production",
+              });
+            }
           }
-        );
-        if (faRes.ok) {
-          const faData = await faRes.json();
-          if (faData.data?.isConnected || faData.isConnected) {
-            setFreeagent({
-              companyId: faData.data?.companyId || faData.companyId,
-              connectedAt: faData.data?.connectedAt || faData.connectedAt,
-              environment: "production",
-            });
-          }
+        } catch (e) {
+          console.log("FreeAgent connection-status also failed:", e);
         }
       }
     } catch (error) {
