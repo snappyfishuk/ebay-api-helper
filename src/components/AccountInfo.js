@@ -1,18 +1,14 @@
-// Updated AccountInfo.js with better error handling and debugging
-
+// Simplified AccountInfo.js - Direct approach
 import React, { useState, useEffect } from "react";
 
 const AccountInfo = () => {
-  const [accountInfo, setAccountInfo] = useState({
-    app: null,
-    ebay: null,
-    freeagent: null,
-    loading: true,
-    error: null,
-  });
+  const [user, setUser] = useState(null);
+  const [ebay, setEbay] = useState(null);
+  const [freeagent, setFreeagent] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAccountInfo();
+    fetchData();
   }, []);
 
   const getAuthHeaders = () => {
@@ -20,206 +16,96 @@ const AccountInfo = () => {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  const fetchAccountInfo = async () => {
+  const fetchData = async () => {
     try {
-      console.log("🔍 Fetching account info...");
-
-      // Try to fetch basic user info first to see if auth works
-      let appUserInfo = null;
-
-      // Method 1: Try getting user info from /api/auth/me (more likely to exist)
-      try {
-        const userResponse = await fetch(
-          `${process.env.REACT_APP_API_URL}/api/auth/me`,
-          {
-            headers: getAuthHeaders(),
-            credentials: "include",
-          }
-        );
-
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
-          appUserInfo = {
-            userEmail:
-              userData.data?.user?.email || userData.user?.email || "Unknown",
-            userFullName:
-              `${
-                userData.data?.user?.firstName || userData.user?.firstName || ""
-              } ${
-                userData.data?.user?.lastName || userData.user?.lastName || ""
-              }`.trim() || "Unknown User",
-          };
-          console.log("✅ Got user info:", appUserInfo);
+      // Get user info
+      const userRes = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/auth/me`,
+        {
+          headers: getAuthHeaders(),
+          credentials: "include",
         }
-      } catch (e) {
-        console.log(
-          "⚠️ Could not fetch user info from /api/auth/me:",
-          e.message
-        );
+      );
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        setUser(userData.data?.user || userData.user);
       }
 
-      // Method 2: Try the new account-info endpoints (may not exist yet)
-      let ebayAccountInfo = null;
-      let freeagentAccountInfo = null;
-
+      // Get eBay info - try account-info first, fallback to connection-status
       try {
-        const ebayResponse = await fetch(
+        const ebayRes = await fetch(
           `${process.env.REACT_APP_API_URL}/api/ebay/account-info`,
           {
             headers: getAuthHeaders(),
             credentials: "include",
           }
         );
-
-        if (ebayResponse.ok) {
-          const ebayData = await ebayResponse.json();
-          ebayAccountInfo = ebayData.data?.ebay;
-          if (!appUserInfo && ebayData.data?.app) {
-            appUserInfo = ebayData.data.app;
-          }
-          console.log("✅ Got eBay account info:", ebayAccountInfo);
-        } else {
-          console.log(
-            "⚠️ eBay account-info endpoint not available (404/405 expected)"
-          );
+        if (ebayRes.ok) {
+          const ebayData = await ebayRes.json();
+          setEbay(ebayData.data?.ebay);
         }
       } catch (e) {
-        console.log("⚠️ Could not fetch eBay account info:", e.message);
+        // Fallback to connection-status
+        const ebayRes = await fetch(
+          `${process.env.REACT_APP_API_URL}/api/ebay/connection-status`,
+          {
+            headers: getAuthHeaders(),
+            credentials: "include",
+          }
+        );
+        if (ebayRes.ok) {
+          const ebayData = await ebayRes.json();
+          if (ebayData.data?.isConnected || ebayData.isConnected) {
+            setEbay({
+              userId: ebayData.data?.userId || ebayData.userId,
+              environment: ebayData.data?.environment || ebayData.environment,
+              connectedAt: ebayData.data?.connectedAt || ebayData.connectedAt,
+            });
+          }
+        }
       }
 
+      // Get FreeAgent info - try account-info first, fallback to connection-status
       try {
-        const freeagentResponse = await fetch(
+        const faRes = await fetch(
           `${process.env.REACT_APP_API_URL}/api/freeagent/account-info`,
           {
             headers: getAuthHeaders(),
             credentials: "include",
           }
         );
-
-        if (freeagentResponse.ok) {
-          const freeagentData = await freeagentResponse.json();
-          freeagentAccountInfo = freeagentData.data?.freeagent;
-          if (!appUserInfo && freeagentData.data?.app) {
-            appUserInfo = freeagentData.data.app;
-          }
-          console.log("✅ Got FreeAgent account info:", freeagentAccountInfo);
-        } else {
-          console.log(
-            "⚠️ FreeAgent account-info endpoint not available (404/405 expected)"
-          );
+        if (faRes.ok) {
+          const faData = await faRes.json();
+          setFreeagent(faData.data?.freeagent);
         }
       } catch (e) {
-        console.log("⚠️ Could not fetch FreeAgent account info:", e.message);
-      }
-
-      // Method 3: Fallback to existing connection-status endpoints
-      if (!ebayAccountInfo) {
-        try {
-          const ebayStatus = await fetch(
-            `${process.env.REACT_APP_API_URL}/api/ebay/connection-status`,
-            {
-              headers: getAuthHeaders(),
-              credentials: "include",
-            }
-          );
-
-          if (ebayStatus.ok) {
-            const ebayData = await ebayStatus.json();
-            if (ebayData.data?.isConnected || ebayData.isConnected) {
-              ebayAccountInfo = {
-                userId: ebayData.data?.userId || ebayData.userId || "Unknown",
-                environment:
-                  ebayData.data?.environment ||
-                  ebayData.environment ||
-                  "production",
-                connectedAt:
-                  ebayData.data?.connectedAt ||
-                  ebayData.connectedAt ||
-                  new Date(),
-                username: null, // Not available from connection-status
-              };
-              console.log("✅ Got eBay connection status:", ebayAccountInfo);
-            }
+        // Fallback to connection-status
+        const faRes = await fetch(
+          `${process.env.REACT_APP_API_URL}/api/freeagent/connection-status`,
+          {
+            headers: getAuthHeaders(),
+            credentials: "include",
           }
-        } catch (e) {
-          console.log("⚠️ Could not fetch eBay connection status:", e.message);
+        );
+        if (faRes.ok) {
+          const faData = await faRes.json();
+          if (faData.data?.isConnected || faData.isConnected) {
+            setFreeagent({
+              companyId: faData.data?.companyId || faData.companyId,
+              connectedAt: faData.data?.connectedAt || faData.connectedAt,
+              environment: "production",
+            });
+          }
         }
       }
-
-      if (!freeagentAccountInfo) {
-        try {
-          const freeagentStatus = await fetch(
-            `${process.env.REACT_APP_API_URL}/api/freeagent/connection-status`,
-            {
-              headers: getAuthHeaders(),
-              credentials: "include",
-            }
-          );
-
-          if (freeagentStatus.ok) {
-            const freeagentData = await freeagentStatus.json();
-            if (freeagentData.data?.isConnected || freeagentData.isConnected) {
-              freeagentAccountInfo = {
-                companyId:
-                  freeagentData.data?.companyId ||
-                  freeagentData.companyId ||
-                  "Unknown",
-                connectedAt:
-                  freeagentData.data?.connectedAt ||
-                  freeagentData.connectedAt ||
-                  new Date(),
-                environment: "production",
-              };
-              console.log(
-                "✅ Got FreeAgent connection status:",
-                freeagentAccountInfo
-              );
-            }
-          }
-        } catch (e) {
-          console.log(
-            "⚠️ Could not fetch FreeAgent connection status:",
-            e.message
-          );
-        }
-      }
-
-      // Update state with whatever we found
-      setAccountInfo({
-        app: appUserInfo,
-        ebay: ebayAccountInfo,
-        freeagent: freeagentAccountInfo,
-        loading: false,
-        error: null,
-      });
-
-      console.log("🎯 Final account info state:", {
-        app: appUserInfo,
-        ebay: ebayAccountInfo,
-        freeagent: freeagentAccountInfo,
-      });
-
-      console.log("🧪 Connection test:", {
-        ebayConnected: !!(
-          ebayAccountInfo &&
-          (ebayAccountInfo.userId || ebayAccountInfo.environment)
-        ),
-        freeagentConnected: !!(
-          freeagentAccountInfo &&
-          (freeagentAccountInfo.companyId || freeagentAccountInfo.environment)
-        ),
-      });
     } catch (error) {
-      console.error("❌ Error fetching account info:", error);
-      setAccountInfo((prev) => ({
-        ...prev,
-        loading: false,
-        error: "Failed to load account information: " + error.message,
-      }));
+      console.error("Error fetching account data:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (accountInfo.loading) {
+  if (loading) {
     return (
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <div className="animate-pulse">
@@ -230,19 +116,11 @@ const AccountInfo = () => {
     );
   }
 
-  if (accountInfo.error) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-        <p className="text-red-600 text-sm">{accountInfo.error}</p>
-        <button
-          onClick={fetchAccountInfo}
-          className="mt-2 text-sm text-red-800 hover:text-red-600 font-medium"
-        >
-          Try Again
-        </button>
-      </div>
-    );
-  }
+  // Helper functions
+  const isEbayConnected = ebay && (ebay.userId || ebay.environment);
+  const isFreeagentConnected =
+    freeagent && (freeagent.companyId || freeagent.environment);
+  const isSyncReady = isEbayConnected && isFreeagentConnected;
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -251,8 +129,8 @@ const AccountInfo = () => {
       </h3>
 
       <div className="space-y-4">
-        {/* App User Info */}
-        {accountInfo.app && (
+        {/* User Info */}
+        {user && (
           <div className="bg-blue-50 rounded-lg p-4">
             <div className="flex items-center mb-2">
               <svg
@@ -269,13 +147,15 @@ const AccountInfo = () => {
               <span className="font-medium text-blue-900">Your Account</span>
             </div>
             <p className="text-blue-800 text-sm">
-              <strong>{accountInfo.app.userFullName}</strong>
+              <strong>
+                {user.firstName} {user.lastName}
+              </strong>
             </p>
-            <p className="text-blue-600 text-sm">{accountInfo.app.userEmail}</p>
+            <p className="text-blue-600 text-sm">{user.email}</p>
           </div>
         )}
 
-        {/* eBay Account Info */}
+        {/* eBay Account */}
         <div className="bg-yellow-50 rounded-lg p-4">
           <div className="flex items-center mb-2">
             <svg
@@ -292,8 +172,7 @@ const AccountInfo = () => {
             <span className="font-medium text-yellow-900">eBay Account</span>
           </div>
 
-          {accountInfo.ebay &&
-          (accountInfo.ebay.userId || accountInfo.ebay.environment) ? (
+          {isEbayConnected ? (
             <div className="space-y-1 text-sm">
               <p className="text-yellow-800">
                 <strong>Status:</strong>
@@ -301,21 +180,23 @@ const AccountInfo = () => {
                   Connected
                 </span>
               </p>
-              {accountInfo.ebay.username && (
+              {ebay.username && (
                 <p className="text-yellow-700">
-                  <strong>Username:</strong> {accountInfo.ebay.username}
+                  <strong>Username:</strong> {ebay.username}
                 </p>
               )}
               <p className="text-yellow-700">
-                <strong>User ID:</strong> {accountInfo.ebay.userId}
+                <strong>User ID:</strong> {ebay.userId}
               </p>
               <p className="text-yellow-700">
-                <strong>Environment:</strong> {accountInfo.ebay.environment}
+                <strong>Environment:</strong> {ebay.environment}
               </p>
-              <p className="text-yellow-700">
-                <strong>Connected:</strong>{" "}
-                {new Date(accountInfo.ebay.connectedAt).toLocaleDateString()}
-              </p>
+              {ebay.connectedAt && (
+                <p className="text-yellow-700">
+                  <strong>Connected:</strong>{" "}
+                  {new Date(ebay.connectedAt).toLocaleDateString()}
+                </p>
+              )}
             </div>
           ) : (
             <p className="text-yellow-600 text-sm">
@@ -326,7 +207,7 @@ const AccountInfo = () => {
           )}
         </div>
 
-        {/* FreeAgent Account Info */}
+        {/* FreeAgent Account */}
         <div className="bg-green-50 rounded-lg p-4">
           <div className="flex items-center mb-2">
             <svg
@@ -345,9 +226,7 @@ const AccountInfo = () => {
             </span>
           </div>
 
-          {accountInfo.freeagent &&
-          (accountInfo.freeagent.companyId ||
-            accountInfo.freeagent.environment) ? (
+          {isFreeagentConnected ? (
             <div className="space-y-1 text-sm">
               <p className="text-green-800">
                 <strong>Status:</strong>
@@ -356,14 +235,14 @@ const AccountInfo = () => {
                 </span>
               </p>
               <p className="text-green-700">
-                <strong>Company ID:</strong> {accountInfo.freeagent.companyId}
+                <strong>Company ID:</strong> {freeagent.companyId}
               </p>
-              <p className="text-green-700">
-                <strong>Connected:</strong>{" "}
-                {new Date(
-                  accountInfo.freeagent.connectedAt
-                ).toLocaleDateString()}
-              </p>
+              {freeagent.connectedAt && (
+                <p className="text-green-700">
+                  <strong>Connected:</strong>{" "}
+                  {new Date(freeagent.connectedAt).toLocaleDateString()}
+                </p>
+              )}
             </div>
           ) : (
             <p className="text-green-600 text-sm">
@@ -374,28 +253,18 @@ const AccountInfo = () => {
           )}
         </div>
 
-        {/* Connection Status Summary */}
+        {/* Sync Status */}
         <div className="border-t pt-4 mt-4">
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-600">Sync Ready:</span>
             <span
               className={`px-3 py-1 rounded-full text-xs font-medium ${
-                accountInfo.ebay &&
-                (accountInfo.ebay.userId || accountInfo.ebay.environment) &&
-                accountInfo.freeagent &&
-                (accountInfo.freeagent.companyId ||
-                  accountInfo.freeagent.environment)
+                isSyncReady
                   ? "bg-green-100 text-green-800"
                   : "bg-yellow-100 text-yellow-800"
               }`}
             >
-              {accountInfo.ebay &&
-              (accountInfo.ebay.userId || accountInfo.ebay.environment) &&
-              accountInfo.freeagent &&
-              (accountInfo.freeagent.companyId ||
-                accountInfo.freeagent.environment)
-                ? "Ready to Sync"
-                : "Connect Both Accounts"}
+              {isSyncReady ? "Ready to Sync" : "Connect Both Accounts"}
             </span>
           </div>
         </div>
