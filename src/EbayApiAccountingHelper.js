@@ -45,7 +45,6 @@ const EbayApiAccountingHelper = ({ user }) => {
   // Processing State
   const [processedData, setProcessedData] = useState(null);
   const [syncStatus, setSyncStatus] = useState(null);
-
   // SECTION 2: VALIDATION FUNCTIONS
   const validateDateRange = (startDate, endDate) => {
     const today = new Date().toISOString().split("T")[0];
@@ -111,7 +110,6 @@ const EbayApiAccountingHelper = ({ user }) => {
     });
     setError(null);
   };
-
   // SECTION 3: useEffect HOOKS AND HELPER FUNCTIONS
   // useEffect Hooks
   useEffect(() => {
@@ -151,7 +149,6 @@ const EbayApiAccountingHelper = ({ user }) => {
         ebayAccountStatus.hasEbayAccount,
     });
   };
-
   // SECTION 4: ENHANCED BACKEND INTEGRATION FUNCTIONS
   // UPDATED: Enhanced FreeAgent Integration Functions
   const checkEbayAccountStatus = async () => {
@@ -255,7 +252,114 @@ const EbayApiAccountingHelper = ({ user }) => {
       setIsLoading(false);
     }
   };
+  // SECTION 5: ENHANCED TRANSACTION DESCRIPTION FUNCTIONS
+  const generateEnhancedTransactionDescription = (txn) => {
+    const {
+      transactionType,
+      transactionMemo,
+      references = [],
+      salesRecordReference,
+      transactionStatus,
+    } = txn;
 
+    let description = "";
+
+    if (transactionMemo && transactionMemo !== "No description") {
+      description = transactionMemo;
+    } else {
+      description = `eBay ${formatTransactionType(transactionType)}`;
+    }
+
+    const meaningfulReference = getMeaningfulReference(
+      references,
+      salesRecordReference
+    );
+    if (meaningfulReference) {
+      description += ` - ${meaningfulReference}`;
+    }
+
+    if (needsStatusInfo(transactionStatus)) {
+      description += ` (${formatTransactionStatus(transactionStatus)})`;
+    }
+
+    return description.substring(0, 255);
+  };
+
+  const formatTransactionType = (transactionType) => {
+    const typeMap = {
+      SALE: "Sale",
+      REFUND: "Refund",
+      WITHDRAWAL: "Payout/Withdrawal",
+      NON_SALE_CHARGE: "Fee/Charge",
+      DISPUTE: "Dispute",
+      TRANSFER: "Transfer",
+      ADJUSTMENT: "Adjustment",
+      CREDIT: "Credit",
+      DEBIT: "Debit",
+    };
+
+    return typeMap[transactionType] || transactionType;
+  };
+
+  const getMeaningfulReference = (references, salesRecordReference) => {
+    if (!references || references.length === 0) {
+      return salesRecordReference && salesRecordReference !== "0"
+        ? `Ref: ${salesRecordReference}`
+        : null;
+    }
+
+    const priorityOrder = [
+      "ORDER_ID",
+      "ITEM_ID",
+      "PAYOUT_ID",
+      "TRANSACTION_ID",
+      "INVOICE_ID",
+    ];
+    const sortedRefs = references.sort((a, b) => {
+      const aIndex = priorityOrder.indexOf(a.referenceType);
+      const bIndex = priorityOrder.indexOf(b.referenceType);
+      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+    });
+
+    const topRef = sortedRefs[0];
+    return formatReference(topRef.referenceType, topRef.referenceId);
+  };
+
+  const formatReference = (referenceType, referenceId) => {
+    const formatMap = {
+      ORDER_ID: `Order #${referenceId}`,
+      ITEM_ID: `Item #${referenceId}`,
+      PAYOUT_ID: `Payout #${referenceId}`,
+      TRANSACTION_ID: `Transaction #${referenceId}`,
+      INVOICE_ID: `Invoice #${referenceId}`,
+      DISPUTE_ID: `Dispute #${referenceId}`,
+    };
+
+    return formatMap[referenceType] || `${referenceType}: ${referenceId}`;
+  };
+
+  const needsStatusInfo = (transactionStatus) => {
+    const statusesNeedingInfo = [
+      "FUNDS_PROCESSING",
+      "FUNDS_ON_HOLD",
+      "FUNDS_AVAILABLE_FOR_PAYOUT",
+      "PAYOUT_INITIATED",
+    ];
+
+    return statusesNeedingInfo.includes(transactionStatus);
+  };
+
+  const formatTransactionStatus = (transactionStatus) => {
+    const statusMap = {
+      FUNDS_PROCESSING: "Processing",
+      FUNDS_ON_HOLD: "On Hold",
+      FUNDS_AVAILABLE_FOR_PAYOUT: "Ready for Payout",
+      PAYOUT_INITIATED: "Payout Initiated",
+      COMPLETED: "Completed",
+    };
+
+    return statusMap[transactionStatus] || transactionStatus;
+  };
   // SECTION 6: BACKEND API FUNCTIONS
   const checkConnectionStatus = async () => {
     try {
@@ -417,7 +521,6 @@ const EbayApiAccountingHelper = ({ user }) => {
       setError("Error disconnecting from FreeAgent");
     }
   };
-
   // SECTION 7: TRANSACTION FETCHING AND SYNCING
   const fetchTransactions = async () => {
     if (!connections.ebay.isConnected) {
@@ -565,7 +668,6 @@ const EbayApiAccountingHelper = ({ user }) => {
       setIsLoading(false);
     }
   };
-
   // SECTION 8: DATA PROCESSING FUNCTIONS
   const processTransactionsForFreeAgent = (ebayTransactions) => {
     if (!ebayTransactions || ebayTransactions.length === 0) {
@@ -680,7 +782,6 @@ const EbayApiAccountingHelper = ({ user }) => {
     link.click();
     URL.revokeObjectURL(url);
   };
-
   // SECTION 9: ENHANCED STREAMLINED FREEAGENT SECTION COMPONENT
   const StreamlinedFreeAgentSection = () => {
     const [creatingAccount, setCreatingAccount] = useState(false);
@@ -907,7 +1008,6 @@ const EbayApiAccountingHelper = ({ user }) => {
       </div>
     );
   };
-
   // SECTION 10: SETUP PROGRESS COMPONENT
   const SetupProgress = () => {
     const steps = [
@@ -999,7 +1099,6 @@ const EbayApiAccountingHelper = ({ user }) => {
       </div>
     );
   };
-
   // SECTION 11: RENDER FUNCTIONS - renderSetupTab
   const renderSetupTab = () => (
     <div className="space-y-8">
@@ -1140,7 +1239,6 @@ const EbayApiAccountingHelper = ({ user }) => {
       </div>
     </div>
   );
-
   // SECTION 12: renderImportTab FUNCTION
   const renderImportTab = () => (
     <div className="space-y-6">
@@ -1336,7 +1434,6 @@ const EbayApiAccountingHelper = ({ user }) => {
       )}
     </div>
   );
-
   // SECTION 13: renderTransactionsTab FUNCTION
   const renderTransactionsTab = () => (
     <div className="space-y-6">
@@ -1422,7 +1519,6 @@ const EbayApiAccountingHelper = ({ user }) => {
       )}
     </div>
   );
-
   // SECTION 14: renderFreeAgentEntriesTab FUNCTION
   const renderFreeAgentEntriesTab = () => (
     <div className="space-y-6">
@@ -1546,7 +1642,6 @@ const EbayApiAccountingHelper = ({ user }) => {
       )}
     </div>
   );
-
   // SECTION 15: MAIN COMPONENT RETURN AND EXPORT
   return (
     <div className="min-h-screen bg-gray-50 py-8">
