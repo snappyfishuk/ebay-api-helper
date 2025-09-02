@@ -153,6 +153,8 @@ const EbayApiAccountingHelper = ({ user }) => {
   // UPDATED: Enhanced FreeAgent Integration Functions
   const checkEbayAccountStatus = async () => {
     try {
+      console.log("🔍 Checking eBay account status...");
+
       const response = await fetch(
         `${process.env.REACT_APP_API_URL}/api/freeagent/ebay-account-status`,
         {
@@ -161,23 +163,46 @@ const EbayApiAccountingHelper = ({ user }) => {
         }
       );
 
+      console.log("📡 Response status:", response.status);
+
       if (response.ok) {
         const data = await response.json();
-        setEbayAccountStatus(data.data);
+        console.log("📦 Full response data:", data);
 
-        // Store available accounts for potential selection
-        if (
-          data.data.availableEbayAccounts &&
-          data.data.availableEbayAccounts.length > 0
-        ) {
-          setAvailableEbayAccounts(data.data.availableEbayAccounts);
+        if (data.data) {
+          console.log("✅ Has eBay Account:", data.data.hasEbayAccount);
+          console.log(
+            "📋 Available eBay Accounts:",
+            data.data.availableEbayAccounts
+          );
+
+          setEbayAccountStatus(data.data);
+
+          // Store available accounts for potential selection
+          if (
+            data.data.availableEbayAccounts &&
+            data.data.availableEbayAccounts.length > 0
+          ) {
+            console.log(
+              "💾 Setting available accounts:",
+              data.data.availableEbayAccounts.length
+            );
+            setAvailableEbayAccounts(data.data.availableEbayAccounts);
+          } else {
+            console.log("⚠️ No available eBay accounts found in response");
+          }
+        } else {
+          console.log("❌ No data object in response");
         }
+      } else {
+        console.log("❌ Response not OK:", response.status);
+        const errorData = await response.text();
+        console.log("Error details:", errorData);
       }
     } catch (error) {
-      console.error("Error checking eBay account status:", error);
+      console.error("💥 Error checking eBay account status:", error);
     }
   };
-
   const createEbayAccount = async () => {
     try {
       setIsLoading(true);
