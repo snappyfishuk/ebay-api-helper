@@ -1,3 +1,4 @@
+// SECTION 1: IMPORTS AND INITIAL STATE
 import React, { useState, useEffect } from "react";
 import AccountInfo from "./components/AccountInfo";
 
@@ -8,13 +9,16 @@ const EbayApiAccountingHelper = ({ user }) => {
     freeagent: { isConnected: false },
   });
 
-  // Streamlined state - removes bank account selection complexity
+  // Enhanced state with availableEbayAccounts
   const [ebayAccountStatus, setEbayAccountStatus] = useState({
     hasEbayAccount: false,
     autoCreated: false,
     needsSetup: true,
     bankAccount: null,
   });
+
+  // NEW: Add this state variable for existing eBay accounts
+  const [availableEbayAccounts, setAvailableEbayAccounts] = useState([]);
 
   const [setupStatus, setSetupStatus] = useState({
     ebayConnected: false,
@@ -41,7 +45,8 @@ const EbayApiAccountingHelper = ({ user }) => {
   // Processing State
   const [processedData, setProcessedData] = useState(null);
   const [syncStatus, setSyncStatus] = useState(null);
-  // VALIDATION FUNCTIONS
+
+  // SECTION 2: VALIDATION FUNCTIONS
   const validateDateRange = (startDate, endDate) => {
     const today = new Date().toISOString().split("T")[0];
     const start = new Date(startDate);
@@ -107,6 +112,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     setError(null);
   };
 
+  // SECTION 3: useEffect HOOKS AND HELPER FUNCTIONS
   // useEffect Hooks
   useEffect(() => {
     if (user) {
@@ -124,6 +130,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     connections.ebay.isConnected,
     ebayAccountStatus.hasEbayAccount,
   ]);
+
   // Helper Functions
   const getAuthHeaders = () => {
     const token = localStorage.getItem("token");
@@ -133,7 +140,20 @@ const EbayApiAccountingHelper = ({ user }) => {
     };
   };
 
-  // Streamlined Backend Integration Functions
+  const updateSetupStatus = () => {
+    setSetupStatus({
+      ebayConnected: connections.ebay.isConnected,
+      freeagentConnected: connections.freeagent.isConnected,
+      ebayAccountReady: ebayAccountStatus.hasEbayAccount,
+      readyToSync:
+        connections.ebay.isConnected &&
+        connections.freeagent.isConnected &&
+        ebayAccountStatus.hasEbayAccount,
+    });
+  };
+
+  // SECTION 4: ENHANCED BACKEND INTEGRATION FUNCTIONS
+  // UPDATED: Enhanced FreeAgent Integration Functions
   const checkEbayAccountStatus = async () => {
     try {
       const response = await fetch(
@@ -147,6 +167,14 @@ const EbayApiAccountingHelper = ({ user }) => {
       if (response.ok) {
         const data = await response.json();
         setEbayAccountStatus(data.data);
+
+        // Store available accounts for potential selection
+        if (
+          data.data.availableEbayAccounts &&
+          data.data.availableEbayAccounts.length > 0
+        ) {
+          setAvailableEbayAccounts(data.data.availableEbayAccounts);
+        }
       }
     } catch (error) {
       console.error("Error checking eBay account status:", error);
@@ -162,6 +190,10 @@ const EbayApiAccountingHelper = ({ user }) => {
           method: "POST",
           headers: getAuthHeaders(),
           credentials: "include",
+          body: JSON.stringify({
+            confirmCreate: "true",
+            accountName: "eBay Sales",
+          }),
         }
       );
 
@@ -174,138 +206,161 @@ const EbayApiAccountingHelper = ({ user }) => {
           needsSetup: false,
           bankAccount: data.data.bankAccount,
         });
+
+        // Clear available accounts since we now have a selected one
+        setAvailableEbayAccounts([]);
       } else {
-        throw new Error(data.message || "Failed to create eBay account");
+        throw new Error(data.message || "Failed to set up eBay account");
       }
     } catch (error) {
-      console.error("Error creating eBay account:", error);
-      setError("Failed to create eBay account. Please try again.");
+      console.error("Error setting up eBay account:", error);
+      setError("Failed to set up eBay account. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const updateSetupStatus = () => {
-    setSetupStatus({
-      ebayConnected: connections.ebay.isConnected,
-      freeagentConnected: connections.freeagent.isConnected,
-      ebayAccountReady: ebayAccountStatus.hasEbayAccount,
-      readyToSync:
-        connections.ebay.isConnected &&
-        connections.freeagent.isConnected &&
-        ebayAccountStatus.hasEbayAccount,
-    });
-  };
-  // Enhanced Transaction Description Functions
-  const generateEnhancedTransactionDescription = (txn) => {
-    const {
-      transactionType,
-      transactionMemo,
-      references = [],
-      salesRecordReference,
-      transactionStatus,
-    } = txn;
+  const selectExistingEbayAccount = async (accountUrl) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/freeagent/select-ebay-account`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(),
+          credentials: "include",
+          body: JSON.stringify({ accountUrl }),
+        }
+      );
 
-    let description = "";
+      const data = await response.json();
 
-    if (transactionMemo && transactionMemo !== "No description") {
-      description = transactionMemo;
-    } else {
-      description = `eBay ${formatTransactionType(transactionType)}`;
+      if (response.ok) {
+        setEbayAccountStatus({
+          hasEbayAccount: true,
+          autoCreated: false,
+          needsSetup: false,
+          bankAccount: data.data.bankAccount,
+        });
+
+        // Clear available accounts since we now have a selected one
+        setAvailableEbayAccounts([]);
+      } else {
+        throw new Error(data.message || "Failed to select eBay account");
+      }
+    } catch (error) {
+      console.error("Error selecting eBay account:", error);
+      setError("Failed to select eBay account. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    const meaningfulReference = getMeaningfulReference(
-      references,
-      salesRecordReference
-    );
-    if (meaningfulReference) {
-      description += ` - ${meaningfulReference}`;
+  // SECTION 4: ENHANCED BACKEND INTEGRATION FUNCTIONS
+  // UPDATED: Enhanced FreeAgent Integration Functions
+  const checkEbayAccountStatus = async () => {
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/freeagent/ebay-account-status`,
+        {
+          headers: getAuthHeaders(),
+          credentials: "include",
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setEbayAccountStatus(data.data);
+
+        // Store available accounts for potential selection
+        if (
+          data.data.availableEbayAccounts &&
+          data.data.availableEbayAccounts.length > 0
+        ) {
+          setAvailableEbayAccounts(data.data.availableEbayAccounts);
+        }
+      }
+    } catch (error) {
+      console.error("Error checking eBay account status:", error);
     }
+  };
 
-    if (needsStatusInfo(transactionStatus)) {
-      description += ` (${formatTransactionStatus(transactionStatus)})`;
+  const createEbayAccount = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/freeagent/create-ebay-account`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(),
+          credentials: "include",
+          body: JSON.stringify({
+            confirmCreate: "true",
+            accountName: "eBay Sales",
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setEbayAccountStatus({
+          hasEbayAccount: true,
+          autoCreated: data.data.created,
+          needsSetup: false,
+          bankAccount: data.data.bankAccount,
+        });
+
+        // Clear available accounts since we now have a selected one
+        setAvailableEbayAccounts([]);
+      } else {
+        throw new Error(data.message || "Failed to set up eBay account");
+      }
+    } catch (error) {
+      console.error("Error setting up eBay account:", error);
+      setError("Failed to set up eBay account. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-
-    return description.substring(0, 255);
   };
 
-  const formatTransactionType = (transactionType) => {
-    const typeMap = {
-      SALE: "Sale",
-      REFUND: "Refund",
-      WITHDRAWAL: "Payout/Withdrawal",
-      NON_SALE_CHARGE: "Fee/Charge",
-      DISPUTE: "Dispute",
-      TRANSFER: "Transfer",
-      ADJUSTMENT: "Adjustment",
-      CREDIT: "Credit",
-      DEBIT: "Debit",
-    };
+  const selectExistingEbayAccount = async (accountUrl) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/freeagent/select-ebay-account`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(),
+          credentials: "include",
+          body: JSON.stringify({ accountUrl }),
+        }
+      );
 
-    return typeMap[transactionType] || transactionType;
-  };
+      const data = await response.json();
 
-  const getMeaningfulReference = (references, salesRecordReference) => {
-    if (!references || references.length === 0) {
-      return salesRecordReference && salesRecordReference !== "0"
-        ? `Ref: ${salesRecordReference}`
-        : null;
+      if (response.ok) {
+        setEbayAccountStatus({
+          hasEbayAccount: true,
+          autoCreated: false,
+          needsSetup: false,
+          bankAccount: data.data.bankAccount,
+        });
+
+        // Clear available accounts since we now have a selected one
+        setAvailableEbayAccounts([]);
+      } else {
+        throw new Error(data.message || "Failed to select eBay account");
+      }
+    } catch (error) {
+      console.error("Error selecting eBay account:", error);
+      setError("Failed to select eBay account. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-
-    const priorityOrder = [
-      "ORDER_ID",
-      "ITEM_ID",
-      "PAYOUT_ID",
-      "TRANSACTION_ID",
-      "INVOICE_ID",
-    ];
-    const sortedRefs = references.sort((a, b) => {
-      const aIndex = priorityOrder.indexOf(a.referenceType);
-      const bIndex = priorityOrder.indexOf(b.referenceType);
-      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
-    });
-
-    const topRef = sortedRefs[0];
-    return formatReference(topRef.referenceType, topRef.referenceId);
   };
 
-  const formatReference = (referenceType, referenceId) => {
-    const formatMap = {
-      ORDER_ID: `Order #${referenceId}`,
-      ITEM_ID: `Item #${referenceId}`,
-      PAYOUT_ID: `Payout #${referenceId}`,
-      TRANSACTION_ID: `Transaction #${referenceId}`,
-      INVOICE_ID: `Invoice #${referenceId}`,
-      DISPUTE_ID: `Dispute #${referenceId}`,
-    };
-
-    return formatMap[referenceType] || `${referenceType}: ${referenceId}`;
-  };
-
-  const needsStatusInfo = (transactionStatus) => {
-    const statusesNeedingInfo = [
-      "FUNDS_PROCESSING",
-      "FUNDS_ON_HOLD",
-      "FUNDS_AVAILABLE_FOR_PAYOUT",
-      "PAYOUT_INITIATED",
-    ];
-
-    return statusesNeedingInfo.includes(transactionStatus);
-  };
-
-  const formatTransactionStatus = (transactionStatus) => {
-    const statusMap = {
-      FUNDS_PROCESSING: "Processing",
-      FUNDS_ON_HOLD: "On Hold",
-      FUNDS_AVAILABLE_FOR_PAYOUT: "Ready for Payout",
-      PAYOUT_INITIATED: "Payout Initiated",
-      COMPLETED: "Completed",
-    };
-
-    return statusMap[transactionStatus] || transactionStatus;
-  };
-
-  // Backend API Functions
+  // SECTION 6: BACKEND API FUNCTIONS
   const checkConnectionStatus = async () => {
     try {
       const ebayResponse = await fetch(
@@ -466,7 +521,8 @@ const EbayApiAccountingHelper = ({ user }) => {
       setError("Error disconnecting from FreeAgent");
     }
   };
-  // TRANSACTION FETCHING
+
+  // SECTION 7: TRANSACTION FETCHING AND SYNCING
   const fetchTransactions = async () => {
     if (!connections.ebay.isConnected) {
       setError("Please connect to eBay first");
@@ -614,7 +670,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     }
   };
 
-  // DATA PROCESSING
+  // SECTION 8: DATA PROCESSING FUNCTIONS
   const processTransactionsForFreeAgent = (ebayTransactions) => {
     if (!ebayTransactions || ebayTransactions.length === 0) {
       return { freeAgentEntries: [], creditCount: 0, debitCount: 0 };
@@ -728,9 +784,15 @@ const EbayApiAccountingHelper = ({ user }) => {
     link.click();
     URL.revokeObjectURL(url);
   };
-  // STREAMLINED UI COMPONENTS
+
+  // SECTION 9: ENHANCED STREAMLINED FREEAGENT SECTION COMPONENT
   const StreamlinedFreeAgentSection = () => {
     const [creatingAccount, setCreatingAccount] = useState(false);
+
+    // Determine what UI to show based on account status
+    const hasMultipleEbayAccounts = availableEbayAccounts.length > 1;
+    const needsAccountSelection =
+      !ebayAccountStatus.hasEbayAccount && availableEbayAccounts.length > 0;
 
     return (
       <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -751,6 +813,7 @@ const EbayApiAccountingHelper = ({ user }) => {
 
         {connections.freeagent.isConnected ? (
           <div className="space-y-4">
+            {/* Success Message */}
             <div className="bg-green-50 rounded-lg p-4">
               <div className="flex items-center">
                 <svg
@@ -775,12 +838,14 @@ const EbayApiAccountingHelper = ({ user }) => {
               </div>
             </div>
 
+            {/* eBay Account Setup */}
             <div className="bg-blue-50 rounded-lg p-4">
               <h4 className="font-medium text-blue-900 mb-3">
                 eBay Sales Account
               </h4>
 
               {ebayAccountStatus.hasEbayAccount ? (
+                /* Account Ready State */
                 <div className="space-y-2">
                   <div className="flex items-center text-sm">
                     <svg
@@ -805,12 +870,51 @@ const EbayApiAccountingHelper = ({ user }) => {
                   </p>
                   {ebayAccountStatus.autoCreated && (
                     <p className="text-blue-600 text-xs">
-                      ✨ Automatically created following FreeAgent best
-                      practices
+                      ✨ New account created following FreeAgent best practices
+                    </p>
+                  )}
+                  {!ebayAccountStatus.autoCreated && (
+                    <p className="text-blue-600 text-xs">
+                      ✅ Using your existing eBay account safely
                     </p>
                   )}
                 </div>
+              ) : needsAccountSelection ? (
+                /* Account Selection State */
+                <div className="space-y-3">
+                  <p className="text-blue-800 text-sm font-medium">
+                    Found {availableEbayAccounts.length} existing eBay account
+                    {availableEbayAccounts.length > 1 ? "s" : ""}. Please select
+                    which one to use:
+                  </p>
+                  <div className="space-y-2">
+                    {availableEbayAccounts.map((account) => (
+                      <button
+                        key={account.id}
+                        onClick={() =>
+                          selectExistingEbayAccount(account.apiUrl)
+                        }
+                        disabled={isLoading}
+                        className="w-full text-left p-3 border border-blue-200 rounded-md hover:bg-blue-100 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <div className="font-medium text-blue-900">
+                          {account.name}
+                        </div>
+                        <div className="text-sm text-blue-700">
+                          {account.type} • {account.currency}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-yellow-800 text-xs">
+                      Safe mode: We found existing eBay accounts and will never
+                      create duplicates. Select one above to continue.
+                    </p>
+                  </div>
+                </div>
               ) : (
+                /* Account Creation State */
                 <div className="space-y-3">
                   <p className="text-blue-800 text-sm">
                     We'll create a dedicated "eBay Sales" bank account in
@@ -822,8 +926,8 @@ const EbayApiAccountingHelper = ({ user }) => {
                       • Keeps eBay transactions separate from other business
                       accounts
                     </li>
-                    <li>• Simplifies bookkeeping and reconciliation</li>
-                    <li>• No manual account selection required</li>
+                    <li>• Safe creation - only if no eBay accounts exist</li>
+                    <li>• No risk of duplicating existing accounts</li>
                   </ul>
                   <button
                     onClick={async () => {
@@ -831,10 +935,10 @@ const EbayApiAccountingHelper = ({ user }) => {
                       await createEbayAccount();
                       setCreatingAccount(false);
                     }}
-                    disabled={creatingAccount}
+                    disabled={creatingAccount || isLoading}
                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors text-sm flex items-center space-x-2"
                   >
-                    {creatingAccount && (
+                    {(creatingAccount || isLoading) && (
                       <svg
                         className="animate-spin h-4 w-4 text-white"
                         xmlns="http://www.w3.org/2000/svg"
@@ -858,7 +962,9 @@ const EbayApiAccountingHelper = ({ user }) => {
                     )}
                     <span>
                       {creatingAccount
-                        ? "Creating Account..."
+                        ? "Setting Up Account..."
+                        : isLoading
+                        ? "Loading..."
                         : "Set Up eBay Sales Account"}
                     </span>
                   </button>
@@ -866,6 +972,7 @@ const EbayApiAccountingHelper = ({ user }) => {
               )}
             </div>
 
+            {/* Disconnect Button */}
             <button
               onClick={disconnectFreeAgent}
               className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
@@ -874,20 +981,19 @@ const EbayApiAccountingHelper = ({ user }) => {
             </button>
           </div>
         ) : (
+          /* Not Connected State */
           <div className="space-y-4">
             <div className="bg-green-50 rounded-lg p-4">
               <h4 className="font-medium text-green-900 mb-2">
                 Connect Your FreeAgent Account
               </h4>
               <p className="text-green-800 text-sm mb-4">
-                Streamlined setup that automatically creates a dedicated eBay
-                account for clean bookkeeping.
+                Safe setup that works with your existing eBay accounts or
+                creates one only if needed.
               </p>
               <ul className="text-green-700 text-sm space-y-1">
-                <li>
-                  • Auto-creates "eBay Sales" account (like Amazon module)
-                </li>
-                <li>• No manual bank account selection needed</li>
+                <li>• Works with existing eBay accounts safely</li>
+                <li>• No risk of deleting or duplicating accounts</li>
                 <li>• Clean separation of eBay transactions</li>
                 <li>• Enhanced transaction descriptions</li>
                 <li>• Secure OAuth connection</li>
@@ -906,6 +1012,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     );
   };
 
+  // SECTION 10: SETUP PROGRESS COMPONENT
   const SetupProgress = () => {
     const steps = [
       {
@@ -996,7 +1103,8 @@ const EbayApiAccountingHelper = ({ user }) => {
       </div>
     );
   };
-  // Render Functions
+
+  // SECTION 11: RENDER FUNCTIONS - renderSetupTab
   const renderSetupTab = () => (
     <div className="space-y-8">
       {/* eBay Integration Section */}
@@ -1083,7 +1191,7 @@ const EbayApiAccountingHelper = ({ user }) => {
         )}
       </div>
 
-      {/* Streamlined FreeAgent Integration */}
+      {/* Enhanced StreamlinedFreeAgentSection */}
       <StreamlinedFreeAgentSection />
 
       {/* Setup Progress */}
@@ -1137,6 +1245,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     </div>
   );
 
+  // SECTION 12: renderImportTab FUNCTION
   const renderImportTab = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -1331,6 +1440,8 @@ const EbayApiAccountingHelper = ({ user }) => {
       )}
     </div>
   );
+
+  // SECTION 13: renderTransactionsTab FUNCTION
   const renderTransactionsTab = () => (
     <div className="space-y-6">
       {transactions.length > 0 ? (
@@ -1416,6 +1527,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     </div>
   );
 
+  // SECTION 14: renderFreeAgentEntriesTab FUNCTION
   const renderFreeAgentEntriesTab = () => (
     <div className="space-y-6">
       {processedData?.freeAgentEntries?.length > 0 ? (
@@ -1539,6 +1651,7 @@ const EbayApiAccountingHelper = ({ user }) => {
     </div>
   );
 
+  // SECTION 15: MAIN COMPONENT RETURN AND EXPORT
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
