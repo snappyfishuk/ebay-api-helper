@@ -14,6 +14,7 @@ import {
   LogOut,
   Menu,
   X,
+  RefreshCw,
 } from "lucide-react";
 
 // Auth Components
@@ -271,7 +272,7 @@ function App() {
                     }`
                   }
                 >
-                  <Sync className="mr-3 h-5 w-5" />
+                  <RefreshCw className="mr-3 h-5 w-5" />
                   Manual Sync
                 </NavLink>
 
