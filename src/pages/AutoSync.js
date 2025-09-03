@@ -1,12 +1,9 @@
 // src/pages/AutoSync.js
+// Create this file in your src/pages/ directory
 
 import React from "react";
 import AutoSyncSettings from "../components/sync/AutoSyncSettings";
 
-/**
- * Dedicated Auto-Sync page component
- * Provides a full-page interface for managing automated sync settings
- */
 const AutoSync = () => {
   return (
     <div className="min-h-screen bg-gray-50">
