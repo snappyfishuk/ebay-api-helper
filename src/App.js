@@ -8,13 +8,12 @@ import {
 } from "react-router-dom";
 import {
   Home,
-  Sync,
+  RefreshCw, // Keep this
   Zap,
   Settings as SettingsIcon,
   LogOut,
   Menu,
   X,
-  RefreshCw,
 } from "lucide-react";
 
 // Auth Components
@@ -174,7 +173,7 @@ function App() {
                       }`
                     }
                   >
-                    <Sync className="mr-2 h-4 w-4" />
+                    <RefreshCw className="mr-2 h-4 w-4" />
                     Manual Sync
                   </NavLink>
 
