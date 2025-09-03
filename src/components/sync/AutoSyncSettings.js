@@ -42,8 +42,9 @@ const AutoSyncSettings = () => {
 
   const fetchSettings = async () => {
     try {
+      // FIXED: Added /api to the URL
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/autosync/settings`,
+        `${process.env.REACT_APP_API_URL}/api/autosync/settings`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -68,17 +69,22 @@ const AutoSyncSettings = () => {
           retryCount: data.data.retryCount,
           recentErrors: data.data.recentErrors,
         });
+      } else if (response.status === 401) {
+        setMessage({
+          type: "error",
+          text: "Authentication failed. Please refresh the page and log in again.",
+        });
       } else {
         setMessage({
           type: "error",
-          text: "Auto-sync backend routes not yet implemented. This is expected during development.",
+          text: `Failed to load auto-sync settings. Status: ${response.status}`,
         });
       }
     } catch (error) {
       console.error("Error fetching auto-sync settings:", error);
       setMessage({
         type: "error",
-        text: "Backend auto-sync routes not available yet. Frontend is ready!",
+        text: "Network error connecting to backend.",
       });
     } finally {
       setLoading(false);
@@ -90,8 +96,9 @@ const AutoSyncSettings = () => {
     setMessage({ type: "", text: "" });
 
     try {
+      // FIXED: Added /api to the URL
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/autosync/settings`,
+        `${process.env.REACT_APP_API_URL}/api/autosync/settings`,
         {
           method: "PUT",
           headers: {
@@ -102,26 +109,32 @@ const AutoSyncSettings = () => {
         }
       );
 
-      const data = await response.json();
-
       if (response.ok) {
+        const data = await response.json();
         setMessage({ type: "success", text: data.message });
         setSyncStatus((prev) => ({
           ...prev,
           nextScheduledSync: data.data.nextScheduledSync,
         }));
-      } else {
+      } else if (response.status === 401) {
         setMessage({
           type: "error",
-          text: "Backend routes not implemented yet. Settings saved locally for testing.",
+          text: "Authentication failed. Please refresh the page and log in again.",
         });
-        // Simulate successful save for demo
-        setSyncStatus((prev) => ({ ...prev, nextScheduledSync: new Date() }));
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setMessage({
+          type: "error",
+          text:
+            errorData.message ||
+            `Failed to save settings. Status: ${response.status}`,
+        });
       }
     } catch (error) {
+      console.error("Error saving auto-sync settings:", error);
       setMessage({
         type: "error",
-        text: "Backend not ready yet. Frontend component working correctly!",
+        text: "Network error connecting to backend.",
       });
     } finally {
       setSaving(false);
@@ -133,8 +146,9 @@ const AutoSyncSettings = () => {
     setMessage({ type: "", text: "" });
 
     try {
+      // FIXED: Added /api to the URL
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/autosync/test`,
+        `${process.env.REACT_APP_API_URL}/api/autosync/test`,
         {
           method: "POST",
           headers: {
@@ -151,16 +165,23 @@ const AutoSyncSettings = () => {
             data.data.successful || 0
           } transactions synced`,
         });
-      } else {
+      } else if (response.status === 401) {
         setMessage({
           type: "error",
-          text: "Test sync backend not implemented yet. Frontend ready!",
+          text: "Authentication failed. Please refresh the page and log in again.",
+        });
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setMessage({
+          type: "error",
+          text: errorData.message || `Test failed. Status: ${response.status}`,
         });
       }
     } catch (error) {
+      console.error("Error testing auto-sync:", error);
       setMessage({
         type: "error",
-        text: "Backend routes coming next. Frontend is complete!",
+        text: "Network error connecting to backend.",
       });
     } finally {
       setTesting(false);
