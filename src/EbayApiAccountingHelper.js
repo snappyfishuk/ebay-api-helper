@@ -214,7 +214,7 @@ const EbayApiAccountingHelper = ({ user }) => {
           credentials: "include",
           body: JSON.stringify({
             confirmCreate: "true",
-            accountName: "eBay Sales",
+            accountName: "eBay UK seller Account", // Updated to match FreeAgent's Amazon pattern
           }),
         }
       );
@@ -882,7 +882,8 @@ const EbayApiAccountingHelper = ({ user }) => {
                       />
                     </svg>
                     <span className="font-medium text-green-800">
-                      {ebayAccountStatus.bankAccount?.name || "eBay Sales"}{" "}
+                      {ebayAccountStatus.bankAccount?.name ||
+                        "eBay UK seller Account"}{" "}
                       account ready
                     </span>
                   </div>
@@ -939,8 +940,8 @@ const EbayApiAccountingHelper = ({ user }) => {
                 /* Account Creation State */
                 <div className="space-y-3">
                   <p className="text-blue-800 text-sm">
-                    We'll create a dedicated "eBay Sales" bank account in
-                    FreeAgent for clean transaction organization.
+                    We'll create a dedicated "eBay UK seller Account" bank
+                    account in FreeAgent for clean transaction organization.
                   </p>
                   <ul className="text-blue-700 text-sm space-y-1">
                     <li>• Follows FreeAgent's Amazon module pattern</li>
@@ -1010,8 +1011,8 @@ const EbayApiAccountingHelper = ({ user }) => {
                 Connect Your FreeAgent Account
               </h4>
               <p className="text-green-800 text-sm mb-4">
-                Safe setup that works with your existing eBay accounts or
-                creates one only if needed.
+                Safe setup that creates "eBay UK seller Account" following
+                FreeAgent's Amazon module pattern.
               </p>
               <ul className="text-green-700 text-sm space-y-1">
                 <li>• Works with existing eBay accounts safely</li>
