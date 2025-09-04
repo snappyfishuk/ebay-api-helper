@@ -153,7 +153,7 @@ const EbayApiAccountingHelper = ({ user }) => {
   // UPDATED: Enhanced FreeAgent Integration Functions
   const checkEbayAccountStatus = async () => {
     try {
-      console.log("ðŸ” Checking eBay account status...");
+      console.log("🔍 Checking eBay account status...");
 
       const response = await fetch(
         `${process.env.REACT_APP_API_URL}/api/freeagent/ebay-account-status`,
@@ -163,16 +163,16 @@ const EbayApiAccountingHelper = ({ user }) => {
         }
       );
 
-      console.log("ðŸ“¡ Response status:", response.status);
+      console.log("📡 Response status:", response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log("ðŸ“¦ Full response data:", data);
+        console.log("📦 Full response data:", data);
 
         if (data.data) {
-          console.log("âœ… Has eBay Account:", data.data.hasEbayAccount);
+          console.log("✅ Has eBay Account:", data.data.hasEbayAccount);
           console.log(
-            "ðŸ“‹ Available eBay Accounts:",
+            "📋 Available eBay Accounts:",
             data.data.availableEbayAccounts
           );
 
@@ -184,23 +184,23 @@ const EbayApiAccountingHelper = ({ user }) => {
             data.data.availableEbayAccounts.length > 0
           ) {
             console.log(
-              "ðŸ’¾ Setting available accounts:",
+              "💾 Setting available accounts:",
               data.data.availableEbayAccounts.length
             );
             setAvailableEbayAccounts(data.data.availableEbayAccounts);
           } else {
-            console.log("âš ï¸ No available eBay accounts found in response");
+            console.log("⚠️ No available eBay accounts found in response");
           }
         } else {
-          console.log("âŒ No data object in response");
+          console.log("❌ No data object in response");
         }
       } else {
-        console.log("âŒ Response not OK:", response.status);
+        console.log("❌ Response not OK:", response.status);
         const errorData = await response.text();
         console.log("Error details:", errorData);
       }
     } catch (error) {
-      console.error("ðŸ’¥ Error checking eBay account status:", error);
+      console.error("💥 Error checking eBay account status:", error);
     }
   };
   const createEbayAccount = async () => {
@@ -893,12 +893,12 @@ const EbayApiAccountingHelper = ({ user }) => {
                   </p>
                   {ebayAccountStatus.autoCreated && (
                     <p className="text-blue-600 text-xs">
-                      âœ¨ New account created following FreeAgent best practices
+                      ✨ New account created following FreeAgent best practices
                     </p>
                   )}
                   {!ebayAccountStatus.autoCreated && (
                     <p className="text-blue-600 text-xs">
-                      âœ… Using your existing eBay account safely
+                      ✅ Using your existing eBay account safely
                     </p>
                   )}
                 </div>
@@ -924,7 +924,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                           {account.name}
                         </div>
                         <div className="text-sm text-blue-700">
-                          {account.type} â€¢ {account.currency}
+                          {account.type} • {account.currency}
                         </div>
                       </button>
                     ))}
@@ -944,13 +944,13 @@ const EbayApiAccountingHelper = ({ user }) => {
                     account in FreeAgent for clean transaction organization.
                   </p>
                   <ul className="text-blue-700 text-sm space-y-1">
-                    <li>â€¢ Follows FreeAgent's Amazon module pattern</li>
+                    <li>• Follows FreeAgent's Amazon module pattern</li>
                     <li>
-                      â€¢ Keeps eBay transactions separate from other business
+                      • Keeps eBay transactions separate from other business
                       accounts
                     </li>
-                    <li>â€¢ Safe creation - only if no eBay accounts exist</li>
-                    <li>â€¢ No risk of duplicating existing accounts</li>
+                    <li>• Safe creation - only if no eBay accounts exist</li>
+                    <li>• No risk of duplicating existing accounts</li>
                   </ul>
                   <button
                     onClick={async () => {
@@ -1015,11 +1015,11 @@ const EbayApiAccountingHelper = ({ user }) => {
                 FreeAgent's Amazon module pattern.
               </p>
               <ul className="text-green-700 text-sm space-y-1">
-                <li>â€¢ Works with existing eBay accounts safely</li>
-                <li>â€¢ No risk of deleting or duplicating accounts</li>
-                <li>â€¢ Clean separation of eBay transactions</li>
-                <li>â€¢ Enhanced transaction descriptions</li>
-                <li>â€¢ Secure OAuth connection</li>
+                <li>• Works with existing eBay accounts safely</li>
+                <li>• No risk of deleting or duplicating accounts</li>
+                <li>• Clean separation of eBay transactions</li>
+                <li>• Enhanced transaction descriptions</li>
+                <li>• Secure OAuth connection</li>
               </ul>
             </div>
             <button
@@ -1190,14 +1190,14 @@ const EbayApiAccountingHelper = ({ user }) => {
               </p>
               <ul className="text-blue-700 text-sm space-y-1">
                 <li>
-                  â€¢ Enhanced transaction descriptions using eBay's rich data
+                  • Enhanced transaction descriptions using eBay's rich data
                 </li>
-                <li>â€¢ Uses transaction memos and reference information</li>
+                <li>• Uses transaction memos and reference information</li>
                 <li>
-                  â€¢ Production eBay API integration with RFC 9421 signatures
+                  • Production eBay API integration with RFC 9421 signatures
                 </li>
                 <li>
-                  â€¢ Individual account isolation - your data stays private
+                  • Individual account isolation - your data stays private
                 </li>
               </ul>
             </div>
@@ -1533,7 +1533,7 @@ const EbayApiAccountingHelper = ({ user }) => {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <div className="text-gray-400 text-4xl mb-4">ðŸ“Š</div>
+          <div className="text-gray-400 text-4xl mb-4">📊</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             No Transactions Found
           </h3>
@@ -1561,7 +1561,7 @@ const EbayApiAccountingHelper = ({ user }) => {
               </div>
               {ebayAccountStatus.hasEbayAccount && (
                 <div className="bg-blue-100 px-3 py-1 rounded-full text-sm font-medium text-blue-800">
-                  â†’ {ebayAccountStatus.bankAccount?.name || "eBay Sales"}
+                  → {ebayAccountStatus.bankAccount?.name || "eBay Sales"}
                 </div>
               )}
             </div>
@@ -1645,7 +1645,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                           entry.isDebit ? "text-red-600" : "text-green-600"
                         }
                       >
-                        {entry.isDebit ? "-" : "+"}Â£{Math.abs(entry.amount)}
+                        {entry.isDebit ? "-" : "+"}£{Math.abs(entry.amount)}
                       </span>
                     </td>
                   </tr>
@@ -1656,7 +1656,7 @@ const EbayApiAccountingHelper = ({ user }) => {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-          <div className="text-gray-400 text-4xl mb-4">ðŸ“‹</div>
+          <div className="text-gray-400 text-4xl mb-4">📋</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             No Entries Generated
           </h3>
@@ -1740,10 +1740,10 @@ const EbayApiAccountingHelper = ({ user }) => {
         <div className="mb-8">
           <nav className="flex space-x-8 justify-center">
             {[
-              { id: "setup", label: "Connections", icon: "ðŸ”—" },
-              { id: "import", label: "Import & Sync", icon: "ðŸ“¥" },
-              { id: "transactions", label: "Transactions", icon: "ðŸ“Š" },
-              { id: "entries", label: "FreeAgent Entries", icon: "ðŸ“‹" },
+              { id: "setup", label: "Connections", icon: "🔗" },
+              { id: "import", label: "Import & Sync", icon: "📥" },
+              { id: "transactions", label: "Transactions", icon: "📊" },
+              { id: "entries", label: "FreeAgent Entries", icon: "📋" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1776,7 +1776,7 @@ const EbayApiAccountingHelper = ({ user }) => {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-sm text-gray-600">
               <div className="flex flex-col items-center space-y-2">
-                <div className="text-2xl">ðŸ”—</div>
+                <div className="text-2xl">🔗</div>
                 <div className="font-medium text-gray-900">eBay Connection</div>
                 <div
                   className={`px-2 py-1 rounded text-xs ${
@@ -1789,7 +1789,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                 </div>
               </div>
               <div className="flex flex-col items-center space-y-2">
-                <div className="text-2xl">ðŸ’°</div>
+                <div className="text-2xl">💰</div>
                 <div className="font-medium text-gray-900">
                   FreeAgent Connection
                 </div>
@@ -1806,7 +1806,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                 </div>
               </div>
               <div className="flex flex-col items-center space-y-2">
-                <div className="text-2xl">ðŸ¦</div>
+                <div className="text-2xl">🏦</div>
                 <div className="font-medium text-gray-900">eBay Account</div>
                 <div
                   className={`px-2 py-1 rounded text-xs ${
@@ -1821,7 +1821,7 @@ const EbayApiAccountingHelper = ({ user }) => {
                 </div>
               </div>
               <div className="flex flex-col items-center space-y-2">
-                <div className="text-2xl">ðŸ“Š</div>
+                <div className="text-2xl">📊</div>
                 <div className="font-medium text-gray-900">Enhanced Data</div>
                 <div className="text-gray-600">
                   {transactions.length} transactions with rich descriptions
