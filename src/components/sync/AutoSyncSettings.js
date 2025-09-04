@@ -15,6 +15,7 @@ const AutoSyncSettings = () => {
     enabled: false,
     frequency: "manual",
     time: "08:00",
+    timezone: "Europe/London",
     lagDays: 3,
     notifications: {
       email: true,
@@ -57,6 +58,7 @@ const AutoSyncSettings = () => {
           enabled: data.data.enabled,
           frequency: data.data.frequency,
           time: data.data.time,
+          timezone: data.data.timezone,
           lagDays: data.data.lagDays,
           notifications: data.data.notifications,
         });
@@ -360,6 +362,30 @@ const AutoSyncSettings = () => {
                   disabled={!settings.enabled}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-100"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Timezone
+                </label>
+                <select
+                  value={settings.timezone}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      timezone: e.target.value,
+                    }))
+                  }
+                  disabled={!settings.enabled}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-100"
+                >
+                  <option value="Europe/London">London (GMT/BST)</option>
+                  <option value="Europe/Paris">Paris (CET/CEST)</option>
+                  <option value="America/New_York">New York (EST/EDT)</option>
+                  <option value="America/Los_Angeles">
+                    Los Angeles (PST/PDT)
+                  </option>
+                </select>
               </div>
             </div>
           )}
