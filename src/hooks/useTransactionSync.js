@@ -1,5 +1,6 @@
-// hooks/useTransactionSync.js
+// hooks/useTransactionSync.js - Updated to use enhanced processing
 import { useState } from "react";
+import { useTransactionProcessing } from "./useTransactionProcessing";
 
 export const useTransactionSync = (connections, setupStatus) => {
   const [transactions, setTransactions] = useState([]);
@@ -7,6 +8,9 @@ export const useTransactionSync = (connections, setupStatus) => {
   const [syncStatus, setSyncStatus] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Use the enhanced processing hook
+  const { processTransactionsForFreeAgent } = useTransactionProcessing();
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("token");
@@ -37,11 +41,21 @@ export const useTransactionSync = (connections, setupStatus) => {
         const txns = data.data?.transactions || [];
         setTransactions(txns);
 
-        // Process for FreeAgent
+        // Use the ENHANCED processing function
         const processed = processTransactionsForFreeAgent(txns);
         setProcessedData(processed);
 
-        setSyncStatus(`Fetched ${txns.length} transactions`);
+        setSyncStatus(
+          `Fetched ${txns.length} transactions with enhanced descriptions`
+        );
+
+        console.log(`Enhanced processing complete:`, {
+          total: processed.freeAgentEntries.length,
+          credits: processed.creditCount,
+          debits: processed.debitCount,
+          totalAmount: processed.totalAmount,
+          netAmount: processed.netAmount,
+        });
       } else {
         setError(data.message || "Failed to fetch transactions");
       }
@@ -63,14 +77,21 @@ export const useTransactionSync = (connections, setupStatus) => {
     setError(null);
 
     try {
+      // Use the ENHANCED sync endpoint with statement upload
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/freeagent/sync-transactions`,
+        `${process.env.REACT_APP_API_URL}/api/freeagent/upload-ebay-statement`,
         {
           method: "POST",
           headers: getAuthHeaders(),
           credentials: "include",
           body: JSON.stringify({
-            transactions: processedData.freeAgentEntries,
+            transactions: processedData.freeAgentEntries.map((entry) => ({
+              dated_on: entry.dated_on,
+              amount: entry.amount,
+              description: entry.description,
+              reference: entry.reference,
+            })),
+            // The bank account will be determined by the backend
           }),
         }
       );
@@ -78,16 +99,30 @@ export const useTransactionSync = (connections, setupStatus) => {
       const data = await response.json();
 
       if (response.ok) {
+        const uploadedCount =
+          data.data?.uploadedCount || processedData.freeAgentEntries.length;
         setSyncStatus(
-          `Successfully synced ${processedData.freeAgentEntries.length} transactions`
+          `Statement upload successful! ${uploadedCount} transactions uploaded with enhanced descriptions using FreeAgent's statement import method.`
         );
-        setProcessedData(null); // Clear after sync
+        setProcessedData(null); // Clear after successful sync
       } else {
-        setError(data.message || "Sync failed");
+        let errorMessage = "Sync failed";
+        if (data.message?.includes("authentication")) {
+          errorMessage =
+            "FreeAgent authentication failed. Please reconnect your FreeAgent account.";
+        } else if (data.message?.includes("validation")) {
+          errorMessage =
+            "Invalid transaction data. Please check your transactions and try again.";
+        } else {
+          errorMessage = data.message || "Unknown sync error occurred";
+        }
+        setError(errorMessage);
       }
     } catch (error) {
       console.error("Sync error:", error);
-      setError("Network error during sync");
+      setError(
+        "Network error during sync. Please check your connection and try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -98,42 +133,23 @@ export const useTransactionSync = (connections, setupStatus) => {
 
     const csvContent = processedData.freeAgentEntries
       .map(
-        (entry) => `${entry.dated_on},${entry.amount},"${entry.description}"`
+        (entry) =>
+          `${entry.dated_on},${entry.amount},"${entry.description}","${
+            entry.category
+          }","${entry.reference || ""}"`
       )
       .join("\n");
 
-    const header = "Date,Amount,Description\n";
+    const header = "Date,Amount,Description,Category,Reference\n";
     const blob = new Blob([header + csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `ebay-transactions-${
+    link.download = `ebay-enhanced-transactions-${
       new Date().toISOString().split("T")[0]
     }.csv`;
     link.click();
     URL.revokeObjectURL(url);
-  };
-
-  // Simplified transaction processing (move complex logic here)
-  const processTransactionsForFreeAgent = (transactions) => {
-    const freeAgentEntries = transactions
-      .map((txn) => ({
-        dated_on: new Date(txn.transactionDate).toISOString().split("T")[0],
-        amount: parseFloat(txn.amount?.value || 0),
-        description: txn.transactionMemo || `eBay ${txn.transactionType}`,
-        reference: txn.transactionId?.toString(),
-      }))
-      .filter((entry) => entry.amount !== 0);
-
-    return {
-      freeAgentEntries,
-      totalAmount: freeAgentEntries.reduce(
-        (sum, entry) => sum + Math.abs(entry.amount),
-        0
-      ),
-      creditCount: freeAgentEntries.filter((e) => e.amount > 0).length,
-      debitCount: freeAgentEntries.filter((e) => e.amount < 0).length,
-    };
   };
 
   return {
