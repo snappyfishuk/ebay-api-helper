@@ -60,8 +60,7 @@ const EbayApiAccountingHelper = ({ user }) => {
       return { isValid: false, error: "Dates cannot be in the future" };
     }
 
-    const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-    if (daysDiff > 90) {
+    const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));    if (daysDiff > 90) {
       return { isValid: false, error: "Date range cannot exceed 90 days" };
     }
 
