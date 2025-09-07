@@ -183,26 +183,42 @@ export class TransactionService {
     return CATEGORY_MAP[txn.transactionType as keyof typeof CATEGORY_MAP] || "Other";
   }
 
-  /**
-   * Export transactions to CSV with proper formatting
-   */
-  public exportToCsv(processedData: ProcessedTransactionData): void {
-    if (!processedData || !processedData.freeAgentEntries) return;
+/**
+ * Export transactions to CSV with FreeAgent format
+ * Format: Date,Money Out,Money In,Description
+ * As per: https://support.freeagent.com/hc/en-gb/articles/115001222564-Format-a-CSV-file-to-upload-a-bank-statement
+ */
+public exportToCsv(processedData: ProcessedTransactionData): void {
+  if (!processedData || !processedData.freeAgentEntries) return;
 
-    const csvContent = processedData.freeAgentEntries
-      .map(
-        (entry) =>
-          `${entry.dated_on},${entry.amount},"${entry.description}","${entry.category}"`
-      )
-      .join("\n");
+  // Convert to FreeAgent CSV format
+  const csvRows = processedData.freeAgentEntries.map((entry) => {
+    // Convert ISO date (YYYY-MM-DD) to DD/MM/YYYY format preferred by FreeAgent
+    const dateParts = entry.dated_on.split('-');
+    const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+    
+    // Split amount into Money Out and Money In columns
+    const amount = Math.abs(entry.amount);
+    const moneyOut = entry.amount < 0 ? amount.toFixed(2) : '';
+    const moneyIn = entry.amount > 0 ? amount.toFixed(2) : '';
+    
+    // Escape quotes in description and wrap in quotes
+    const description = `"${entry.description.replace(/"/g, '""')}"`;
+    
+    return `${formattedDate},${moneyOut},${moneyIn},${description}`;
+  });
 
-    const header = "Date,Amount,Description,Category\n";
-    const blob = new Blob([header + csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `ebay-transactions-${new Date().toISOString().split("T")[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
+  // FreeAgent CSV header
+  const header = "Date,Money Out,Money In,Description";
+  const csvContent = header + "\n" + csvRows.join("\n");
+
+  // Download the file
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `ebay-freeagent-statement-${new Date().toISOString().split("T")[0]}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 }
