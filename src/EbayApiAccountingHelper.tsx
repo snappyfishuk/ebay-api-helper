@@ -1,4 +1,4 @@
-// EbayApiAccountingHelper.tsx - Original Working Structure with Visual Improvements
+// EbayApiAccountingHelper.tsx - Option 4: Reorganized Tab Structure
 import React, { useState, useEffect } from "react";
 import { 
   useEbayConnection, 
@@ -16,9 +16,9 @@ interface EbayApiAccountingHelperProps {
   user: User;
 }
 
-type TabId = 'setup' | 'import' | 'transactions' | 'entries';
+type TabId = 'dashboard' | 'autosync' | 'tools' | 'history';
 
-// Minimal Trial Alert with Test User Detection
+// Test User Detection Component
 const TrialAlert: React.FC<{ user?: User }> = ({ user }) => {
   const [trialData, setTrialData] = useState<any>(null);
 
@@ -44,10 +44,8 @@ const TrialAlert: React.FC<{ user?: User }> = ({ user }) => {
     fetchTrial();
   }, []);
 
-  // Check if this is a test user
   const isTestUser = user?.email === 'gary.arnold@hotmail.co.uk';
 
-  // Show test user banner
   if (isTestUser) {
     return (
       <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
@@ -63,7 +61,6 @@ const TrialAlert: React.FC<{ user?: User }> = ({ user }) => {
     );
   }
 
-  // Regular trial logic for non-test users
   if (!trialData || trialData.subscriptionStatus !== 'trial' || 
       (trialData.daysRemaining && trialData.daysRemaining > 5)) {
     return null;
@@ -84,7 +81,7 @@ const TrialAlert: React.FC<{ user?: User }> = ({ user }) => {
 };
 
 const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user }) => {
-  const [activeTab, setActiveTab] = useState<TabId>("setup");
+  const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   
   const ebayConnection = useEbayConnection();
   const freeagentConnection = useFreeAgentConnection();
@@ -104,7 +101,6 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
         freeagentConnection.checkConnection(),
       ]);
 
-      // Debug user data
       console.log("USER DATA CHECK:", {
         hasUser: !!user,
         email: user?.email,
@@ -125,7 +121,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
     };
 
     switch (activeTab) {
-      case 'setup':
+      case 'dashboard':
         return (
           <SetupTab
             {...commonProps}
@@ -139,29 +135,101 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
             onSelectEbayAccount={freeagentConnection.selectExistingEbayAccount}
           />
         );
-      case 'import':
+      case 'autosync':
         return (
-          <ImportTab
-            {...commonProps}
-            selectedDateRange={transactionsManager.selectedDateRange}
-            onStartDateChange={transactionsManager.handleStartDateChange}
-            onEndDateChange={transactionsManager.handleEndDateChange}
-            onSetDatePreset={transactionsManager.setDatePreset}
-            onFetchTransactions={transactionsManager.fetchTransactions}
-            onSyncToFreeAgent={() => transactionsManager.syncToFreeAgent(freeagentConnection.ebayAccountStatus)}
-            onExportCsv={transactionsManager.exportToCsv}
-            processedData={transactionsManager.processedData}
-            syncStatus={transactionsManager.syncStatus}
-          />
+          <div className="space-y-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Auto-Sync Configuration</h3>
+              <p className="text-gray-600 text-sm">Configure automated daily syncing of eBay transactions to FreeAgent</p>
+            </div>
+            
+            {setupStatus.readyToSync ? (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                <div className="text-center">
+                  <div className="text-2xl mb-2">⚡</div>
+                  <h4 className="text-lg font-semibold text-green-800 mb-2">Auto-Sync Ready</h4>
+                  <p className="text-green-700 text-sm mb-4">Your eBay and FreeAgent accounts are connected and ready for automated syncing.</p>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-white rounded-lg p-4 border border-green-200">
+                      <div className="text-sm text-gray-600 mb-2">Sync Schedule:</div>
+                      <div className="text-lg font-semibold text-gray-900">Daily at 2:00 AM (UK Time)</div>
+                      <div className="text-sm text-gray-500">3-day lag for eBay transaction processing</div>
+                    </div>
+                    
+                    <div className="flex gap-4 justify-center">
+                      <button className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        Enable Auto-Sync
+                      </button>
+                      <button className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300">
+                        Test Sync Now
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                <div className="text-center">
+                  <div className="text-2xl mb-2">⚠️</div>
+                  <h4 className="text-lg font-semibold text-yellow-800 mb-2">Setup Required</h4>
+                  <p className="text-yellow-700 text-sm mb-4">Complete your account connections on the Dashboard tab to enable auto-sync.</p>
+                  
+                  <button 
+                    onClick={() => setActiveTab('dashboard')}
+                    className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                  >
+                    Go to Dashboard
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         );
-      case 'transactions':
-        return <TransactionsTab transactions={transactionsManager.transactions} />;
-      case 'entries':
+      case 'tools':
         return (
-          <FreeAgentEntriesTab
-            processedData={transactionsManager.processedData}
-            ebayAccountStatus={freeagentConnection.ebayAccountStatus}
-          />
+          <div className="space-y-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Manual Tools</h3>
+              <p className="text-gray-600 text-sm">Manual sync tools, troubleshooting, and advanced options</p>
+            </div>
+            
+            <ImportTab
+              {...commonProps}
+              selectedDateRange={transactionsManager.selectedDateRange}
+              onStartDateChange={transactionsManager.handleStartDateChange}
+              onEndDateChange={transactionsManager.handleEndDateChange}
+              onSetDatePreset={transactionsManager.setDatePreset}
+              onFetchTransactions={transactionsManager.fetchTransactions}
+              onSyncToFreeAgent={() => transactionsManager.syncToFreeAgent(freeagentConnection.ebayAccountStatus)}
+              onExportCsv={transactionsManager.exportToCsv}
+              processedData={transactionsManager.processedData}
+              syncStatus={transactionsManager.syncStatus}
+            />
+          </div>
+        );
+      case 'history':
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Transaction History</h3>
+              <p className="text-gray-600 text-sm">View eBay transactions and FreeAgent entries</p>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div>
+                <h4 className="text-md font-semibold text-gray-900 mb-4">eBay Transactions</h4>
+                <TransactionsTab transactions={transactionsManager.transactions} />
+              </div>
+              <div>
+                <h4 className="text-md font-semibold text-gray-900 mb-4">FreeAgent Entries</h4>
+                <FreeAgentEntriesTab
+                  processedData={transactionsManager.processedData}
+                  ebayAccountStatus={freeagentConnection.ebayAccountStatus}
+                />
+              </div>
+            </div>
+          </div>
         );
       default:
         return null;
@@ -203,11 +271,10 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
           </div>
         )}
 
-        {/* Enhanced Status Cards with Brand Colors */}
+        {/* Enhanced Status Cards - PRESERVED */}
         <div className="bg-gradient-to-r from-blue-50 via-green-50 to-purple-50 border-2 border-gray-200 rounded-xl p-6 mb-6 shadow-sm">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Connection Status</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* eBay Status - eBay Colors */}
             <div className="bg-gradient-to-br from-blue-50 to-red-50 border-2 border-blue-200 rounded-lg p-4 text-center">
               <div className={`w-4 h-4 rounded-full mx-auto mb-2 ${(user?.ebayConnection?.isConnected || connections.ebay.isConnected) ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
               <div className="text-sm font-bold text-blue-800 mb-1">eBay Username</div>
@@ -222,7 +289,6 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
               </div>
             </div>
             
-            {/* FreeAgent Status - FreeAgent Colors */}
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-4 text-center">
               <div className={`w-4 h-4 rounded-full mx-auto mb-2 ${(user?.freeagentConnection?.isConnected || connections.freeagent.isConnected) ? 'bg-green-600' : 'bg-gray-300'}`}></div>
               <div className="text-sm font-bold text-green-800 mb-1">FreeAgent User Email</div>
@@ -237,7 +303,6 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
               </div>
             </div>
             
-            {/* Bank Account Status - Purple Theme */}
             <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-lg p-4 text-center">
               <div className={`w-4 h-4 rounded-full mx-auto mb-2 ${freeagentConnection.ebayAccountStatus.hasEbayAccount ? 'bg-purple-600' : 'bg-gray-300'}`}></div>
               <div className="text-sm font-bold text-purple-800 mb-1">FreeAgent Bank Account</div>
@@ -252,7 +317,6 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
               </div>
             </div>
 
-            {/* System Ready Status */}
             <div className="bg-gradient-to-br from-gray-50 to-slate-50 border-2 border-gray-200 rounded-lg p-4 text-center">
               <div className={`w-4 h-4 rounded-full mx-auto mb-2 ${
                 (user?.ebayConnection?.isConnected || connections.ebay.isConnected) && 
@@ -269,25 +333,26 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
           </div>
         </div>
 
-        {/* Original Tab Navigation - Keep Working */}
+        {/* NEW Tab Navigation - Option 4 Structure */}
         <div className="mb-6">
           <div className="flex space-x-2">
             {[
-              { id: 'setup', label: 'Setup' },
-              { id: 'import', label: 'Import & Sync' },
-              { id: 'transactions', label: 'Transactions' },
-              { id: 'entries', label: 'FreeAgent Entries' },
+              { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+              { id: 'autosync', label: 'Auto-Sync', icon: '⚡' },
+              { id: 'tools', label: 'Tools', icon: '🔧' },
+              { id: 'history', label: 'History', icon: '📊' },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as TabId)}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                className={`flex items-center space-x-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                   activeTab === tab.id
                     ? 'bg-blue-600 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-50 border'
                 }`}
               >
-                {tab.label}
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
               </button>
             ))}
           </div>
