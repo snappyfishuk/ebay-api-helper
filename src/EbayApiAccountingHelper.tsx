@@ -210,7 +210,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
                   <div className="mb-6">
                     <div className="font-medium text-gray-900 mb-2">Transaction Lag (Days)</div>
                     <div className="text-sm text-gray-600 mb-3">
-                      Wait this many days before syncing transactions (reduced from Amazon's 3 days for faster eBay processing)
+                      Wait 1, 2 or 3 days before before syncing transactions.
                     </div>
                     <div className="flex space-x-2">
                       <button className="px-3 py-1 bg-blue-600 text-white text-sm rounded font-medium">
