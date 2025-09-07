@@ -100,6 +100,10 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
   const ebayConnection = useEbayConnection();
   const freeagentConnection = useFreeAgentConnection();
   const transactionsManager = useTransactions(ebayConnection.connection.isConnected);
+
+  console.log("eBay Connection Data:", ebayConnection);
+  console.log("FreeAgent Connection Data:", freeagentConnection);
+  console.log("User Data:", user);
   
   const connections: Connections = {
     ebay: ebayConnection.connection,
