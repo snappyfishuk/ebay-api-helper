@@ -1,3 +1,4 @@
+// src/components/sync/AutoSyncSettings.tsx - FIXED VERSION
 import React, { useState, useEffect } from 'react';
 import { Calendar, CheckCircle, X, Clock, Settings, Play, AlertTriangle, Info } from 'lucide-react';
 
@@ -82,7 +83,7 @@ const AutoSyncSettings: React.FC = () => {
   const loadSettings = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/autosync/settings', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/autosync/settings`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -102,20 +103,21 @@ const AutoSyncSettings: React.FC = () => {
       console.error('Error loading settings:', error);
       setMessage({
         type: 'error',
-        text: 'Network error loading settings',
+        text: 'Failed to connect to the server',
       });
     } finally {
       setLoading(false);
     }
   };
 
+  // FIXED: Save settings function with proper API call
   const saveSettings = async () => {
+    console.log('💾 Save Settings clicked!', settings);
     setSaving(true);
-    setMessage({ type: 'info', text: '' });
-
+    
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/autosync/settings', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/autosync/settings`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -124,47 +126,46 @@ const AutoSyncSettings: React.FC = () => {
         body: JSON.stringify({
           enabled: settings.enabled,
           lagDays: settings.lagDays,
-          notifications: settings.notifications,
+          notifications: settings.notifications
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
-        setSettings(prevSettings => ({ ...prevSettings, ...data.data }));
         setMessage({
           type: 'success',
-          text: data.message,
+          text: 'Auto-sync settings saved successfully!',
         });
-      } else if (response.status === 401) {
-        setMessage({
-          type: 'error',
-          text: 'Please refresh the page and log in again.',
-        });
+        // Update settings with response data
+        if (data.data) {
+          setSettings(prev => ({ ...prev, ...data.data }));
+        }
       } else {
         const errorData = await response.json().catch(() => ({}));
         setMessage({
           type: 'error',
-          text: errorData.message || `Failed to save settings. Status: ${response.status}`,
+          text: errorData.message || `Save failed. Status: ${response.status}`,
         });
       }
     } catch (error) {
       console.error('Error saving settings:', error);
       setMessage({
         type: 'error',
-        text: 'Network error saving settings.',
+        text: 'Network error - unable to save settings',
       });
     } finally {
       setSaving(false);
     }
   };
 
+  // FIXED: Test auto-sync function with correct endpoint
   const testAutoSync = async () => {
+    console.log('🧪 Test Now clicked!');
     setTesting(true);
-    setMessage({ type: 'info', text: '' });
-
+    
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/autosync/test-now', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/autosync/test`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -176,12 +177,7 @@ const AutoSyncSettings: React.FC = () => {
         const data = await response.json();
         setMessage({
           type: 'success',
-          text: `Test completed! ${data.data.result?.successful || 0} transactions processed.`,
-        });
-      } else if (response.status === 401) {
-        setMessage({
-          type: 'error',
-          text: 'Please refresh the page and log in again.',
+          text: data.message || 'Test sync completed successfully!',
         });
       } else {
         const errorData = await response.json().catch(() => ({}));
@@ -201,12 +197,101 @@ const AutoSyncSettings: React.FC = () => {
     }
   };
 
-  const toggleAutoSync = () => {
-    setSettings(prev => ({ ...prev, enabled: !prev.enabled }));
+  // FIXED: Toggle auto-sync with API call
+  const toggleAutoSync = async () => {
+    console.log('🔄 Toggle clicked! Current:', settings.enabled);
+    const newEnabled = !settings.enabled;
+    
+    // Update local state immediately for UI responsiveness
+    setSettings(prev => ({ ...prev, enabled: newEnabled }));
+    
+    // Save the change
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/api/autosync/settings`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          enabled: newEnabled,
+          lagDays: settings.lagDays,
+          notifications: settings.notifications
+        }),
+      });
+
+      if (response.ok) {
+        setMessage({
+          type: 'success',
+          text: `Auto-sync ${newEnabled ? 'enabled' : 'disabled'} successfully!`,
+        });
+      } else {
+        // Revert on failure
+        setSettings(prev => ({ ...prev, enabled: !newEnabled }));
+        setMessage({
+          type: 'error',
+          text: 'Failed to update auto-sync setting',
+        });
+      }
+    } catch (error) {
+      // Revert on failure
+      setSettings(prev => ({ ...prev, enabled: !newEnabled }));
+      console.error('Error toggling auto-sync:', error);
+      setMessage({
+        type: 'error',
+        text: 'Network error - please try again',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const updateLagDays = (days: number) => {
+  // FIXED: Update lag days with auto-save
+  const updateLagDays = async (days: number) => {
+    console.log('📅 Lag days clicked:', days);
     setSettings(prev => ({ ...prev, lagDays: days }));
+    
+    // Auto-save when lag days change
+    if (settings.enabled) {
+      setSaving(true);
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/api/autosync/settings`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            enabled: settings.enabled,
+            lagDays: days,
+            notifications: settings.notifications
+          }),
+        });
+
+        if (response.ok) {
+          setMessage({
+            type: 'success',
+            text: `Lag days updated to ${days} day${days > 1 ? 's' : ''}`,
+          });
+        } else {
+          setMessage({
+            type: 'error',
+            text: 'Failed to update lag days',
+          });
+        }
+      } catch (error) {
+        console.error('Error updating lag days:', error);
+        setMessage({
+          type: 'error',
+          text: 'Network error updating lag days',
+        });
+      } finally {
+        setSaving(false);
+      }
+    }
   };
 
   const updateNotifications = (key: keyof typeof settings.notifications, value: boolean) => {
@@ -240,6 +325,12 @@ const AutoSyncSettings: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
+      {/* Debug Info - Remove this after testing */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded p-4 text-sm">
+        <p><strong>Debug:</strong> API URL: {process.env.REACT_APP_API_URL}</p>
+        <p><strong>Token:</strong> {localStorage.getItem('token') ? 'Present' : 'Missing'}</p>
+      </div>
+
       {/* Header */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-center justify-between">
@@ -279,44 +370,42 @@ const AutoSyncSettings: React.FC = () => {
             ? 'bg-red-50 text-red-800 border border-red-200'
             : 'bg-blue-50 text-blue-800 border border-blue-200'
         }`}>
-          <div className="flex items-center gap-2">
-            {message.type === 'success' ? (
-              <CheckCircle className="h-4 w-4" />
-            ) : message.type === 'error' ? (
-              <AlertTriangle className="h-4 w-4" />
-            ) : (
-              <Info className="h-4 w-4" />
-            )}
-            {message.text}
+          <div className="flex">
+            <div className="flex-shrink-0">
+              {message.type === 'success' && <CheckCircle className="h-5 w-5" />}
+              {message.type === 'error' && <X className="h-5 w-5" />}
+              {message.type === 'info' && <Info className="h-5 w-5" />}
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium">{message.text}</p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Fixed Settings Display */}
-      <div className="bg-blue-50 rounded-lg border border-blue-200 p-6">
-        <div className="flex items-start gap-3">
-          <Clock className="h-5 w-5 text-blue-600 mt-0.5" />
-          <div>
-            <h3 className="font-semibold text-blue-900 mb-2">Fixed Schedule (Like FreeAgent Amazon)</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <span className="font-medium text-blue-800">Sync Time:</span>
-                <div className="text-blue-700">{settings.fixedSettings.syncTime}</div>
-              </div>
-              <div>
-                <span className="font-medium text-blue-800">Frequency:</span>
-                <div className="text-blue-700">{settings.fixedSettings.frequency}</div>
-              </div>
-              <div>
-                <span className="font-medium text-blue-800">Timezone:</span>
-                <div className="text-blue-700">{settings.fixedSettings.timezone}</div>
-              </div>
-            </div>
-            <p className="text-blue-700 text-sm mt-2">
-              No time selection needed - automatically syncs at the optimal time for eBay transactions
-            </p>
+      {/* Fixed Schedule Information */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Clock className="h-5 w-5" />
+          Fixed Schedule (Like FreeAgent Amazon)
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg">
+          <div className="text-center">
+            <div className="text-lg font-bold text-blue-900">{settings.fixedSettings.syncTime}</div>
+            <div className="text-sm text-blue-700">Sync Time</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-bold text-blue-900">{settings.fixedSettings.frequency}</div>
+            <div className="text-sm text-blue-700">Frequency</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-bold text-blue-900">{settings.fixedSettings.timezone}</div>
+            <div className="text-sm text-blue-700">Timezone</div>
           </div>
         </div>
+        <p className="text-blue-700 text-sm mt-2">
+          No time selection needed - automatically syncs at the optimal time for eBay transactions
+        </p>
       </div>
 
       {/* Main Settings */}
@@ -339,6 +428,7 @@ const AutoSyncSettings: React.FC = () => {
               type="checkbox"
               checked={settings.enabled}
               onChange={toggleAutoSync}
+              disabled={saving}
               className="sr-only peer"
             />
             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -358,11 +448,12 @@ const AutoSyncSettings: React.FC = () => {
               <button
                 key={days}
                 onClick={() => updateLagDays(days)}
-                className={`px-4 py-2 rounded-md text-sm font-medium ${
+                disabled={saving}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   settings.lagDays === days
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+                } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {days} day{days > 1 ? 's' : ''}
               </button>
@@ -403,7 +494,7 @@ const AutoSyncSettings: React.FC = () => {
           <button
             onClick={saveSettings}
             disabled={saving}
-            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
           >
             {saving ? (
               <>
@@ -416,8 +507,8 @@ const AutoSyncSettings: React.FC = () => {
           </button>
           <button
             onClick={testAutoSync}
-            disabled={testing || !settings.enabled}
-            className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+            disabled={testing || !settings.enabled || saving}
+            className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
           >
             {testing ? (
               <>
