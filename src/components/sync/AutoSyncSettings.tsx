@@ -474,4 +474,4 @@ const AutoSyncSettings: React.FC = () => {
   );
 };
 
-export default AutoSyncSettings;
+export default AutoSyncSettings; 
