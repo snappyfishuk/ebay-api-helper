@@ -1,4 +1,4 @@
-// EbayApiAccountingHelper.tsx - Clean Focused Version
+// EbayApiAccountingHelper.tsx - Ultra Clean Version
 import React, { useState, useEffect } from "react";
 import { 
   useEbayConnection, 
@@ -18,15 +18,9 @@ interface EbayApiAccountingHelperProps {
 
 type TabId = 'setup' | 'import' | 'transactions' | 'entries';
 
-// Trial Status Component - Simplified
-interface TrialData {
-  subscriptionStatus: string;
-  isTrialActive: boolean;
-  daysRemaining: number | null;
-}
-
+// Minimal Trial Alert - Only shows when urgent
 const TrialAlert: React.FC = () => {
-  const [trialData, setTrialData] = useState<TrialData | null>(null);
+  const [trialData, setTrialData] = useState<any>(null);
 
   useEffect(() => {
     const fetchTrial = async () => {
@@ -50,24 +44,19 @@ const TrialAlert: React.FC = () => {
     fetchTrial();
   }, []);
 
-  // Only show if trial expires soon or expired
+  // Only show if trial expires soon
   if (!trialData || trialData.subscriptionStatus !== 'trial' || 
       (trialData.daysRemaining && trialData.daysRemaining > 5)) {
     return null;
   }
 
-  const isUrgent = !trialData.isTrialActive || (trialData.daysRemaining && trialData.daysRemaining <= 2);
-
   return (
-    <div className={`p-3 rounded-lg mb-4 ${isUrgent ? 'bg-red-50 border border-red-200' : 'bg-yellow-50 border border-yellow-200'}`}>
-      <div className="flex items-center justify-between">
-        <span className={`text-sm font-medium ${isUrgent ? 'text-red-800' : 'text-yellow-800'}`}>
-          {trialData.isTrialActive 
-            ? `Trial ends in ${trialData.daysRemaining} day${trialData.daysRemaining === 1 ? '' : 's'}`
-            : 'Trial expired'
-          }
+    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+      <div className="flex justify-between items-center">
+        <span className="text-sm text-yellow-800">
+          Trial ends in {trialData.daysRemaining} day{trialData.daysRemaining === 1 ? '' : 's'}
         </span>
-        <button className={`px-3 py-1 text-xs rounded ${isUrgent ? 'bg-red-600 text-white' : 'bg-yellow-600 text-white'}`}>
+        <button className="px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700">
           Upgrade
         </button>
       </div>
@@ -75,22 +64,31 @@ const TrialAlert: React.FC = () => {
   );
 };
 
-// Minimal Header
-const Header: React.FC<{ user: User; connections: Connections; readyToSync: boolean }> = ({ 
-  user, connections, readyToSync 
-}) => (
-  <div className="bg-white rounded-lg border p-4 mb-6">
-    <div className="flex items-center justify-between">
-      <div className="flex items-center space-x-4">
-        <h1 className="text-lg font-semibold text-gray-900">eBay API Helper</h1>
-        <span className="text-sm text-gray-500">{user.email}</span>
-      </div>
-      <div className="flex items-center space-x-3">
-        <div className={`w-2 h-2 rounded-full ${connections.ebay.isConnected ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-        <div className={`w-2 h-2 rounded-full ${connections.freeagent.isConnected ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-        <span className={`px-2 py-1 text-xs rounded ${readyToSync ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-          {readyToSync ? 'Ready' : 'Setup'}
-        </span>
+// Simple Status Cards - Just 3 essential boxes
+const StatusCards: React.FC<{ 
+  ebayConnected: boolean; 
+  freeagentConnected: boolean; 
+  ebayAccountReady: boolean;
+  bankAccountName?: string;
+}> = ({ ebayConnected, freeagentConnected, ebayAccountReady, bankAccountName }) => (
+  <div className="grid grid-cols-3 gap-4 mb-6">
+    <div className="bg-white border rounded-lg p-4 text-center">
+      <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ebayConnected ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+      <div className="text-sm font-medium">eBay</div>
+      <div className="text-xs text-gray-500">{ebayConnected ? 'Connected' : 'Setup needed'}</div>
+    </div>
+    
+    <div className="bg-white border rounded-lg p-4 text-center">
+      <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${freeagentConnected ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+      <div className="text-sm font-medium">FreeAgent</div>
+      <div className="text-xs text-gray-500">{freeagentConnected ? 'Connected' : 'Setup needed'}</div>
+    </div>
+    
+    <div className="bg-white border rounded-lg p-4 text-center">
+      <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ebayAccountReady ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+      <div className="text-sm font-medium">Bank Account</div>
+      <div className="text-xs text-gray-500">
+        {ebayAccountReady ? (bankAccountName || 'eBay Sales') : 'Setup needed'}
       </div>
     </div>
   </div>
@@ -176,13 +174,13 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
-        <Header user={user} connections={connections} readyToSync={setupStatus.readyToSync} />
+        
         <TrialAlert />
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-            <div className="flex justify-between items-start">
-              <p className="text-red-800 text-sm">{error}</p>
+            <div className="flex justify-between items-center">
+              <span className="text-red-800 text-sm">{error}</span>
               <button 
                 onClick={() => {
                   ebayConnection.error && ebayConnection.checkConnection();
@@ -195,6 +193,13 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
             </div>
           </div>
         )}
+
+        <StatusCards 
+          ebayConnected={connections.ebay.isConnected}
+          freeagentConnected={connections.freeagent.isConnected}
+          ebayAccountReady={freeagentConnection.ebayAccountStatus.hasEbayAccount}
+          bankAccountName={freeagentConnection.ebayAccountStatus.bankAccount?.name}
+        />
 
         <div className="mb-6">
           <div className="flex space-x-2">
@@ -223,13 +228,6 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
           {renderTab()}
         </div>
 
-        {setupStatus.readyToSync && (
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              {transactionsManager.transactions.length} transactions processed
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
