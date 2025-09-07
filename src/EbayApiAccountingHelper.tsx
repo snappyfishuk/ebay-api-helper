@@ -1,4 +1,4 @@
-// EbayApiAccountingHelper.tsx - Option 4: Reorganized Tab Structure
+// EbayApiAccountingHelper.tsx - Single Header Navigation
 import React, { useState, useEffect } from "react";
 import { 
   useEbayConnection, 
@@ -16,7 +16,7 @@ interface EbayApiAccountingHelperProps {
   user: User;
 }
 
-type TabId = 'dashboard' | 'autosync' | 'tools' | 'history';
+type NavigationId = 'dashboard' | 'autosync' | 'manual' | 'history';
 
 // Test User Detection Component
 const TrialAlert: React.FC<{ user?: User }> = ({ user }) => {
@@ -81,7 +81,7 @@ const TrialAlert: React.FC<{ user?: User }> = ({ user }) => {
 };
 
 const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user }) => {
-  const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+  const [activeNav, setActiveNav] = useState<NavigationId>("dashboard");
   
   const ebayConnection = useEbayConnection();
   const freeagentConnection = useFreeAgentConnection();
@@ -112,7 +112,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
     }
   }, [user]);
 
-  const renderTab = () => {
+  const renderContent = () => {
     const commonProps = {
       connections,
       setupStatus,
@@ -120,50 +120,139 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
       isLoading: ebayConnection.isLoading || freeagentConnection.isLoading || transactionsManager.isLoading,
     };
 
-    switch (activeTab) {
+    switch (activeNav) {
       case 'dashboard':
         return (
-          <SetupTab
-            {...commonProps}
-            availableEbayAccounts={freeagentConnection.availableEbayAccounts}
-            user={user}
-            onConnectEbay={ebayConnection.connect}
-            onDisconnectEbay={ebayConnection.disconnect}
-            onConnectFreeAgent={freeagentConnection.connect}
-            onDisconnectFreeAgent={freeagentConnection.disconnect}
-            onCreateEbayAccount={freeagentConnection.createEbayAccount}
-            onSelectEbayAccount={freeagentConnection.selectExistingEbayAccount}
-          />
+          <div className="space-y-6">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Connection Setup</h3>
+              <p className="text-gray-600 text-sm">Connect your eBay and FreeAgent accounts to get started</p>
+            </div>
+            
+            <SetupTab
+              {...commonProps}
+              availableEbayAccounts={freeagentConnection.availableEbayAccounts}
+              user={user}
+              onConnectEbay={ebayConnection.connect}
+              onDisconnectEbay={ebayConnection.disconnect}
+              onConnectFreeAgent={freeagentConnection.connect}
+              onDisconnectFreeAgent={freeagentConnection.disconnect}
+              onCreateEbayAccount={freeagentConnection.createEbayAccount}
+              onSelectEbayAccount={freeagentConnection.selectExistingEbayAccount}
+            />
+          </div>
         );
+        
       case 'autosync':
         return (
           <div className="space-y-6">
             <div className="text-center">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Auto-Sync Configuration</h3>
-              <p className="text-gray-600 text-sm">Configure automated daily syncing of eBay transactions to FreeAgent</p>
+              <p className="text-gray-600 text-sm">Automatically sync your eBay transactions to FreeAgent daily</p>
             </div>
             
             {setupStatus.readyToSync ? (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                <div className="text-center">
-                  <div className="text-2xl mb-2">⚡</div>
-                  <h4 className="text-lg font-semibold text-green-800 mb-2">Auto-Sync Ready</h4>
-                  <p className="text-green-700 text-sm mb-4">Your eBay and FreeAgent accounts are connected and ready for automated syncing.</p>
-                  
-                  <div className="space-y-4">
-                    <div className="bg-white rounded-lg p-4 border border-green-200">
-                      <div className="text-sm text-gray-600 mb-2">Sync Schedule:</div>
-                      <div className="text-lg font-semibold text-gray-900">Daily at 2:00 AM (UK Time)</div>
-                      <div className="text-sm text-gray-500">3-day lag for eBay transaction processing</div>
+              <div className="space-y-6">
+                {/* Auto-Sync Status Card */}
+                <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="text-lg font-semibold text-green-800">Auto-Sync Settings</h4>
+                      <p className="text-green-700 text-sm">Syncs daily at 2:00 AM UK time</p>
                     </div>
-                    
-                    <div className="flex gap-4 justify-center">
-                      <button className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
-                        Enable Auto-Sync
+                    <div className="bg-green-100 px-3 py-1 rounded-full text-sm font-medium text-green-800">
+                      Active
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fixed Schedule Info */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                  <h4 className="text-md font-semibold text-blue-800 mb-3">Fixed Schedule (Like FreeAgent Amazon)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <span className="text-blue-700 font-medium">Sync Time:</span>
+                      <div className="text-blue-600">02:00 AM</div>
+                    </div>
+                    <div>
+                      <span className="text-blue-700 font-medium">Frequency:</span>
+                      <div className="text-blue-600">Daily</div>
+                    </div>
+                    <div>
+                      <span className="text-blue-700 font-medium">Timezone:</span>
+                      <div className="text-blue-600">UK Time</div>
+                    </div>
+                  </div>
+                  <p className="text-blue-600 text-xs mt-2">
+                    No time selection needed - automatically syncs at the optimal time for eBay transactions
+                  </p>
+                </div>
+
+                {/* Auto-Sync Controls */}
+                <div className="bg-white border rounded-lg p-6">
+                  <h4 className="text-md font-semibold text-gray-900 mb-4">Auto-Sync Control</h4>
+                  
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <div className="font-medium text-gray-900">Enable Auto-Sync</div>
+                      <div className="text-sm text-gray-600">Automatically sync eBay transactions daily at 2:00 AM UK time</div>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                        defaultChecked={true}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Transaction Lag Options */}
+                  <div className="mb-6">
+                    <div className="font-medium text-gray-900 mb-2">Transaction Lag (Days)</div>
+                    <div className="text-sm text-gray-600 mb-3">
+                      Wait this many days before syncing transactions (reduced from Amazon's 3 days for faster eBay processing)
+                    </div>
+                    <div className="flex space-x-2">
+                      <button className="px-3 py-1 bg-blue-600 text-white text-sm rounded font-medium">
+                        1 day
                       </button>
-                      <button className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300">
-                        Test Sync Now
+                      <button className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded font-medium hover:bg-gray-300">
+                        2 days
                       </button>
+                      <button className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded font-medium hover:bg-gray-300">
+                        3 days
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">Recommended: 2 days (balances accuracy with speed)</p>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex space-x-4">
+                    <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium">
+                      Save Settings
+                    </button>
+                    <button className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium">
+                      Test Now
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sync Status */}
+                <div className="bg-white border rounded-lg p-6">
+                  <h4 className="text-md font-semibold text-gray-900 mb-4">Sync Status</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <div className="text-sm font-medium text-gray-700 mb-2">Schedule</div>
+                      <div className="text-sm text-gray-600">Next sync: 8 Sept 2025, 02:00</div>
+                      <div className="text-sm text-gray-600">Last sync: 7 Sept 2025, 13:00</div>
+                      <div className="text-sm text-gray-600">Retry count: 0/3</div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-700 mb-2">Statistics</div>
+                      <div className="text-sm text-gray-600">Total syncs: 13</div>
+                      <div className="text-sm text-gray-600">Successful: 12</div>
+                      <div className="text-sm text-red-600">Failed: 1</div>
+                      <div className="text-sm text-gray-600">Avg transactions: 10</div>
                     </div>
                   </div>
                 </div>
@@ -173,10 +262,10 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
                 <div className="text-center">
                   <div className="text-2xl mb-2">⚠️</div>
                   <h4 className="text-lg font-semibold text-yellow-800 mb-2">Setup Required</h4>
-                  <p className="text-yellow-700 text-sm mb-4">Complete your account connections on the Dashboard tab to enable auto-sync.</p>
+                  <p className="text-yellow-700 text-sm mb-4">Complete your account connections on the Dashboard to enable auto-sync.</p>
                   
                   <button 
-                    onClick={() => setActiveTab('dashboard')}
+                    onClick={() => setActiveNav('dashboard')}
                     className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
                   >
                     Go to Dashboard
@@ -186,12 +275,13 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
             )}
           </div>
         );
-      case 'tools':
+        
+      case 'manual':
         return (
           <div className="space-y-6">
             <div className="text-center">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Manual Tools</h3>
-              <p className="text-gray-600 text-sm">Manual sync tools, troubleshooting, and advanced options</p>
+              <p className="text-gray-600 text-sm">Manual sync tools, troubleshooting, and CSV export</p>
             </div>
             
             <ImportTab
@@ -208,6 +298,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
             />
           </div>
         );
+        
       case 'history':
         return (
           <div className="space-y-6">
@@ -240,6 +331,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
             </div>
           </div>
         );
+        
       default:
         return null;
     }
@@ -280,7 +372,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
           </div>
         )}
 
-        {/* Enhanced Status Cards - PRESERVED */}
+        {/* Connection Status Cards - PRESERVED */}
         <div className="bg-gradient-to-r from-blue-50 via-green-50 to-purple-50 border-2 border-gray-200 rounded-xl p-6 mb-6 shadow-sm">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Connection Status</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -342,33 +434,33 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
           </div>
         </div>
 
-        {/* NEW Tab Navigation - Option 4 Structure */}
+        {/* SINGLE HEADER NAVIGATION - No Tabs */}
         <div className="mb-6">
-          <div className="flex space-x-2">
+          <div className="flex space-x-2 justify-center">
             {[
               { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
               { id: 'autosync', label: 'Auto-Sync', icon: '⚡' },
-              { id: 'tools', label: 'Tools', icon: '🔧' },
-              { id: 'history', label: 'History', icon: '📊' },
-            ].map((tab) => (
+              { id: 'manual', label: 'Manual Tools', icon: '🔧' },
+              { id: 'history', label: 'Transaction History', icon: '📊' },
+            ].map((nav) => (
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as TabId)}
+                key={nav.id}
+                onClick={() => setActiveNav(nav.id as NavigationId)}
                 className={`flex items-center space-x-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  activeTab === tab.id
+                  activeNav === nav.id
                     ? 'bg-blue-600 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-50 border'
                 }`}
               >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
+                <span>{nav.icon}</span>
+                <span>{nav.label}</span>
               </button>
             ))}
           </div>
         </div>
 
         <div className="bg-white rounded-lg border p-6">
-          {renderTab()}
+          {renderContent()}
         </div>
 
       </div>
