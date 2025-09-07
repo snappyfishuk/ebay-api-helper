@@ -131,52 +131,6 @@ export const SetupTab: React.FC<SetupTabProps> = ({
 
       {/* Setup Progress */}
       {!setupStatus.readyToSync && <SetupProgress setupStatus={setupStatus} />}
-
-      {/* System Status - Professional Theme */}
-      <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-xl p-6 shadow-sm">
-        <h3 className="text-lg font-bold text-purple-800 mb-4">
-          System Status
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-blue-100 border border-blue-300 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-bold text-blue-900">Backend Connected</p>
-                <p className="text-blue-700 text-sm">
-                  Enhanced processing active
-                </p>
-              </div>
-              <div className="h-3 w-3 bg-green-500 rounded-full"></div>
-            </div>
-          </div>
-          <div className="bg-purple-100 border border-purple-300 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-bold text-purple-900">
-                  User Authenticated
-                </p>
-                <p className="text-purple-700 text-sm">{user?.email}</p>
-              </div>
-              <div className="h-3 w-3 bg-green-500 rounded-full"></div>
-            </div>
-          </div>
-          <div className="bg-green-100 border border-green-300 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-bold text-green-900">Setup Complete</p>
-                <p className="text-green-700 text-sm">
-                  {setupStatus.readyToSync ? "Ready to sync" : "Setup required"}
-                </p>
-              </div>
-              <div
-                className={`h-3 w-3 rounded-full ${
-                  setupStatus.readyToSync ? "bg-green-500" : "bg-yellow-500"
-                }`}
-              ></div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
