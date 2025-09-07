@@ -64,24 +64,30 @@ const TrialAlert: React.FC = () => {
   );
 };
 
-// Simple Status Cards - Just 3 essential boxes
+// Enhanced Status Cards with user details
 const StatusCards: React.FC<{ 
   ebayConnected: boolean; 
   freeagentConnected: boolean; 
   ebayAccountReady: boolean;
   bankAccountName?: string;
-}> = ({ ebayConnected, freeagentConnected, ebayAccountReady, bankAccountName }) => (
+  ebayUsername?: string;
+  userEmail?: string;
+}> = ({ ebayConnected, freeagentConnected, ebayAccountReady, bankAccountName, ebayUsername, userEmail }) => (
   <div className="grid grid-cols-3 gap-4 mb-6">
     <div className="bg-white border rounded-lg p-4 text-center">
       <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ebayConnected ? 'bg-green-500' : 'bg-gray-300'}`}></div>
       <div className="text-sm font-medium">eBay</div>
-      <div className="text-xs text-gray-500">{ebayConnected ? 'Connected' : 'Setup needed'}</div>
+      <div className="text-xs text-gray-500">
+        {ebayConnected ? (ebayUsername || 'Connected') : 'Setup needed'}
+      </div>
     </div>
     
     <div className="bg-white border rounded-lg p-4 text-center">
       <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${freeagentConnected ? 'bg-green-500' : 'bg-gray-300'}`}></div>
       <div className="text-sm font-medium">FreeAgent</div>
-      <div className="text-xs text-gray-500">{freeagentConnected ? 'Connected' : 'Setup needed'}</div>
+      <div className="text-xs text-gray-500">
+        {freeagentConnected ? (userEmail || 'Connected') : 'Setup needed'}
+      </div>
     </div>
     
     <div className="bg-white border rounded-lg p-4 text-center">
@@ -100,10 +106,6 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
   const ebayConnection = useEbayConnection();
   const freeagentConnection = useFreeAgentConnection();
   const transactionsManager = useTransactions(ebayConnection.connection.isConnected);
-
-  console.log("eBay Connection Data:", ebayConnection);
-  console.log("FreeAgent Connection Data:", freeagentConnection);
-  console.log("User Data:", user);
   
   const connections: Connections = {
     ebay: ebayConnection.connection,
