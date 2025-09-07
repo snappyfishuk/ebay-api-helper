@@ -44,6 +44,29 @@ const TrialAlert: React.FC = () => {
     fetchTrial();
   }, []);
 
+  // Get current user email for test user detection
+  const userEmail = localStorage.getItem('userEmail') || 
+    JSON.parse(localStorage.getItem('user') || '{}').email;
+  
+  const isTestUser = userEmail === 'gary.arnold@hotmail.co.uk';
+
+  // Show test user banner
+  if (isTestUser) {
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-green-800">
+            ✓ Test Account - Unlimited Access
+          </span>
+          <span className="px-2 py-1 bg-green-600 text-white text-xs rounded">
+            Developer
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // Regular trial logic for non-test users
   if (!trialData || trialData.subscriptionStatus !== 'trial' || 
       (trialData.daysRemaining && trialData.daysRemaining > 5)) {
     return null;
@@ -53,7 +76,7 @@ const TrialAlert: React.FC = () => {
     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
       <div className="flex justify-between items-center">
         <span className="text-sm text-yellow-800">
-          Trial ends in {trialData.daysRemaining} day{trialData.daysRemaining === 1 ? '' : 's'}
+          Trial ends in {trialData.daysRemaining || 0} day{(trialData.daysRemaining || 0) === 1 ? '' : 's'}
         </span>
         <button className="px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700">
           Upgrade
