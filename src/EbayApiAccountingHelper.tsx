@@ -78,9 +78,9 @@ const StatusCards: React.FC<{
   user
 }) => {
   
-  // Simple display logic - no more ugly user IDs
+  // Simple display logic - now with username support
   const ebayText = ebayConnected 
-    ? `Connected (${user?.ebayConnection?.environment || 'production'})`
+    ? (user?.ebayConnection?.username || `Connected (${user?.ebayConnection?.environment || 'production'})`)
     : 'Setup needed';
     
   const freeagentText = freeagentConnected 
