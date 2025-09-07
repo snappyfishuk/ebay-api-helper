@@ -157,7 +157,6 @@ const StreamlinedFreeAgentSection: React.FC<{
 }) => {
   const [creatingAccount, setCreatingAccount] = useState(false);
 
-  const hasMultipleEbayAccounts = availableEbayAccounts.length > 1;
   const needsAccountSelection =
     !ebayAccountStatus.hasEbayAccount && availableEbayAccounts.length > 0;
 
