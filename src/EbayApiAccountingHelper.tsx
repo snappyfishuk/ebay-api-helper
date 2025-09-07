@@ -140,6 +140,16 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
         ebayConnection.checkConnection(),
         freeagentConnection.checkConnection(),
       ]);
+      
+      // Simple debug to see what we have
+      console.log("USER DATA CHECK:", {
+        hasUser: !!user,
+        email: user?.email,
+        ebayConnected: user?.ebayConnection?.isConnected,
+        ebayEnvironment: user?.ebayConnection?.environment,
+        ebayUsername: user?.ebayConnection?.username,
+        ebayUserId: user?.ebayConnection?.userId
+      });
     }
   }, [user]);
 
