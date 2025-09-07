@@ -1,88 +1,94 @@
-import React, { useState, useEffect } from "react";
-import {
-  Clock,
-  Calendar,
-  Settings,
-  AlertCircle,
-  CheckCircle,
-  Play,
-  X,
-  Bell,
-} from "lucide-react";
+import React, { useState, useEffect } from 'react';
+import { Calendar, CheckCircle, X, Clock, Settings, Play, AlertTriangle, Info } from 'lucide-react';
 
-const AutoSyncSettings = () => {
-  const [settings, setSettings] = useState({
+interface AutoSyncSettings {
+  enabled: boolean;
+  lagDays: number;
+  lastAutoSync?: string;
+  nextScheduledSync?: string;
+  retryCount: number;
+  notifications: {
+    email: boolean;
+    syncSuccess: boolean;
+    syncFailure: boolean;
+  };
+  stats: {
+    totalAutoSyncs: number;
+    successfulAutoSyncs: number;
+    failedAutoSyncs: number;
+    averageTransactionsPerSync: number;
+  };
+  fixedSettings: {
+    syncTime: string;
+    timezone: string;
+    frequency: string;
+    description: string;
+  };
+}
+
+interface Message {
+  type: 'success' | 'error' | 'info';
+  text: string;
+}
+
+const AutoSyncSettings: React.FC = () => {
+  const [settings, setSettings] = useState<AutoSyncSettings>({
     enabled: false,
-    frequency: "manual",
-    time: "08:00",
-    lagDays: 3,
+    lagDays: 2,
+    retryCount: 0,
     notifications: {
       email: true,
       syncSuccess: false,
       syncFailure: true,
     },
-  });
-
-  const [syncStatus, setSyncStatus] = useState({
-    lastAutoSync: null,
-    nextScheduledSync: null,
-    retryCount: 0,
-    recentErrors: [],
+    stats: {
+      totalAutoSyncs: 0,
+      successfulAutoSyncs: 0,
+      failedAutoSyncs: 0,
+      averageTransactionsPerSync: 0,
+    },
+    fixedSettings: {
+      syncTime: '02:00 AM',
+      timezone: 'UK Time',
+      frequency: 'Daily',
+      description: 'Syncs daily at 2:00 AM UK time, just like FreeAgent\'s Amazon integration'
+    }
   });
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [message, setMessage] = useState({ type: "", text: "" });
+  const [message, setMessage] = useState<Message>({ type: 'info', text: '' });
 
+  // Load settings on component mount
   useEffect(() => {
-    fetchSettings();
+    loadSettings();
   }, []);
 
-  const fetchSettings = async () => {
+  const loadSettings = async () => {
     try {
-      // FIXED: Added /api to the URL
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/autosync/settings`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        }
-      );
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/autosync/settings', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
       if (response.ok) {
         const data = await response.json();
-        setSettings({
-          enabled: data.data.enabled,
-          frequency: data.data.frequency,
-          time: data.data.time,
-          lagDays: data.data.lagDays,
-          notifications: data.data.notifications,
-        });
-
-        setSyncStatus({
-          lastAutoSync: data.data.lastAutoSync,
-          nextScheduledSync: data.data.nextScheduledSync,
-          retryCount: data.data.retryCount,
-          recentErrors: data.data.recentErrors,
-        });
-      } else if (response.status === 401) {
-        setMessage({
-          type: "error",
-          text: "Authentication failed. Please refresh the page and log in again.",
-        });
+        setSettings(data.data);
       } else {
         setMessage({
-          type: "error",
-          text: `Failed to load auto-sync settings. Status: ${response.status}`,
+          type: 'error',
+          text: 'Failed to load auto-sync settings',
         });
       }
     } catch (error) {
-      console.error("Error fetching auto-sync settings:", error);
+      console.error('Error loading settings:', error);
       setMessage({
-        type: "error",
-        text: "Network error connecting to backend.",
+        type: 'error',
+        text: 'Network error loading settings',
       });
     } finally {
       setLoading(false);
@@ -91,48 +97,47 @@ const AutoSyncSettings = () => {
 
   const saveSettings = async () => {
     setSaving(true);
-    setMessage({ type: "", text: "" });
+    setMessage({ type: 'info', text: '' });
 
     try {
-      // FIXED: Added /api to the URL
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/autosync/settings`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-          body: JSON.stringify(settings),
-        }
-      );
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/autosync/settings', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          enabled: settings.enabled,
+          lagDays: settings.lagDays,
+          notifications: settings.notifications,
+        }),
+      });
 
       if (response.ok) {
         const data = await response.json();
-        setMessage({ type: "success", text: data.message });
-        setSyncStatus((prev) => ({
-          ...prev,
-          nextScheduledSync: data.data.nextScheduledSync,
-        }));
+        setSettings(prevSettings => ({ ...prevSettings, ...data.data }));
+        setMessage({
+          type: 'success',
+          text: data.message,
+        });
       } else if (response.status === 401) {
         setMessage({
-          type: "error",
-          text: "Authentication failed. Please refresh the page and log in again.",
+          type: 'error',
+          text: 'Please refresh the page and log in again.',
         });
       } else {
         const errorData = await response.json().catch(() => ({}));
         setMessage({
-          type: "error",
-          text:
-            errorData.message ||
-            `Failed to save settings. Status: ${response.status}`,
+          type: 'error',
+          text: errorData.message || `Failed to save settings. Status: ${response.status}`,
         });
       }
     } catch (error) {
-      console.error("Error saving auto-sync settings:", error);
+      console.error('Error saving settings:', error);
       setMessage({
-        type: "error",
-        text: "Network error connecting to backend.",
+        type: 'error',
+        text: 'Network error saving settings.',
       });
     } finally {
       setSaving(false);
@@ -141,57 +146,74 @@ const AutoSyncSettings = () => {
 
   const testAutoSync = async () => {
     setTesting(true);
-    setMessage({ type: "", text: "" });
+    setMessage({ type: 'info', text: '' });
 
     try {
-      // FIXED: Added /api to the URL
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/autosync/test`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        }
-      );
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/autosync/test-now', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
       if (response.ok) {
         const data = await response.json();
         setMessage({
-          type: "success",
-          text: `Test completed: ${
-            data.data.successful || 0
-          } transactions synced`,
+          type: 'success',
+          text: `Test completed! ${data.data.result?.successful || 0} transactions processed.`,
         });
       } else if (response.status === 401) {
         setMessage({
-          type: "error",
-          text: "Authentication failed. Please refresh the page and log in again.",
+          type: 'error',
+          text: 'Please refresh the page and log in again.',
         });
       } else {
         const errorData = await response.json().catch(() => ({}));
         setMessage({
-          type: "error",
+          type: 'error',
           text: errorData.message || `Test failed. Status: ${response.status}`,
         });
       }
     } catch (error) {
-      console.error("Error testing auto-sync:", error);
+      console.error('Error testing auto-sync:', error);
       setMessage({
-        type: "error",
-        text: "Network error connecting to backend.",
+        type: 'error',
+        text: 'Network error connecting to backend.',
       });
     } finally {
       setTesting(false);
     }
   };
 
-  const formatDateTime = (dateString) => {
-    if (!dateString) return "Never";
-    return new Date(dateString).toLocaleString("en-GB", {
-      dateStyle: "medium",
-      timeStyle: "short",
+  const toggleAutoSync = () => {
+    setSettings(prev => ({ ...prev, enabled: !prev.enabled }));
+  };
+
+  const updateLagDays = (days: number) => {
+    setSettings(prev => ({ ...prev, lagDays: days }));
+  };
+
+  const updateNotifications = (key: keyof typeof settings.notifications, value: boolean) => {
+    setSettings(prev => ({
+      ...prev,
+      notifications: { ...prev.notifications, [key]: value }
+    }));
+  };
+
+  const formatDateTime = (dateString?: string) => {
+    if (!dateString) return 'Never';
+    return new Date(dateString).toLocaleString('en-GB', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
     });
+  };
+
+  const getStatusIcon = () => {
+    if (!settings.enabled) return <X className="h-4 w-4" />;
+    if (settings.retryCount >= 3) return <AlertTriangle className="h-4 w-4" />;
+    return <CheckCircle className="h-4 w-4" />;
   };
 
   if (loading) {
@@ -213,78 +235,71 @@ const AutoSyncSettings = () => {
               Auto-Sync Settings
             </h2>
             <p className="text-gray-600 mt-1">
-              Automatically sync your eBay transactions to FreeAgent daily, just
-              like Amazon integration
+              {settings.fixedSettings.description}
             </p>
           </div>
-          <div
-            className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
-              settings.enabled
-                ? "bg-green-100 text-green-800"
-                : "bg-gray-100 text-gray-800"
-            }`}
-          >
-            {settings.enabled ? (
-              <>
-                <CheckCircle className="h-4 w-4" />
-                Active
-              </>
-            ) : (
-              <>
-                <X className="h-4 w-4" />
-                Inactive
-              </>
-            )}
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+            settings.enabled
+              ? settings.retryCount >= 3
+                ? 'bg-red-100 text-red-800'
+                : 'bg-green-100 text-green-800'
+              : 'bg-gray-100 text-gray-800'
+          }`}>
+            {getStatusIcon()}
+            {settings.enabled 
+              ? settings.retryCount >= 3 
+                ? 'Paused' 
+                : 'Active'
+              : 'Inactive'
+            }
           </div>
         </div>
       </div>
 
       {/* Status Message */}
       {message.text && (
-        <div
-          className={`rounded-lg p-4 ${
-            message.type === "success"
-              ? "bg-green-50 text-green-800 border border-green-200"
-              : "bg-red-50 text-red-800 border border-red-200"
-          }`}
-        >
+        <div className={`rounded-lg p-4 ${
+          message.type === 'success'
+            ? 'bg-green-50 text-green-800 border border-green-200'
+            : message.type === 'error'
+            ? 'bg-red-50 text-red-800 border border-red-200'
+            : 'bg-blue-50 text-blue-800 border border-blue-200'
+        }`}>
           <div className="flex items-center gap-2">
-            {message.type === "success" ? (
-              <CheckCircle className="h-5 w-5" />
+            {message.type === 'success' ? (
+              <CheckCircle className="h-4 w-4" />
+            ) : message.type === 'error' ? (
+              <AlertTriangle className="h-4 w-4" />
             ) : (
-              <AlertCircle className="h-5 w-5" />
+              <Info className="h-4 w-4" />
             )}
             {message.text}
           </div>
         </div>
       )}
 
-      {/* Current Status */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Sync Status
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm font-medium text-gray-600">Last Auto-Sync</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {formatDateTime(syncStatus.lastAutoSync)}
-            </p>
-          </div>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm font-medium text-gray-600">Next Scheduled</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {formatDateTime(syncStatus.nextScheduledSync)}
-            </p>
-          </div>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="text-sm font-medium text-gray-600">Retry Count</p>
-            <p
-              className={`text-lg font-semibold ${
-                syncStatus.retryCount > 0 ? "text-orange-600" : "text-gray-900"
-              }`}
-            >
-              {syncStatus.retryCount}/3
+      {/* Fixed Settings Display */}
+      <div className="bg-blue-50 rounded-lg border border-blue-200 p-6">
+        <div className="flex items-start gap-3">
+          <Clock className="h-5 w-5 text-blue-600 mt-0.5" />
+          <div>
+            <h3 className="font-semibold text-blue-900 mb-2">Fixed Schedule (Like FreeAgent Amazon)</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="font-medium text-blue-800">Sync Time:</span>
+                <div className="text-blue-700">{settings.fixedSettings.syncTime}</div>
+              </div>
+              <div>
+                <span className="font-medium text-blue-800">Frequency:</span>
+                <div className="text-blue-700">{settings.fixedSettings.frequency}</div>
+              </div>
+              <div>
+                <span className="font-medium text-blue-800">Timezone:</span>
+                <div className="text-blue-700">{settings.fixedSettings.timezone}</div>
+              </div>
+            </div>
+            <p className="text-blue-700 text-sm mt-2">
+              No time selection needed - automatically syncs at the optimal time for eBay transactions
             </p>
           </div>
         </div>
@@ -294,313 +309,164 @@ const AutoSyncSettings = () => {
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <Settings className="h-5 w-5" />
-          Auto-Sync Configuration
+          Auto-Sync Control
         </h3>
 
-        <div className="space-y-6">
-          {/* Enable Auto-Sync */}
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                Enable Auto-Sync
-              </label>
-              <p className="text-sm text-gray-500">
-                Automatically sync transactions with 3-day delay (like
-                FreeAgent's Amazon integration)
-              </p>
-            </div>
-            <button
-              onClick={() =>
-                setSettings((prev) => ({ ...prev, enabled: !prev.enabled }))
-              }
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.enabled ? "bg-blue-600" : "bg-gray-200"
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  settings.enabled ? "translate-x-6" : "translate-x-1"
-                }`}
-              />
-            </button>
-          </div>
-
-          {/* Frequency */}
+        {/* Enable/Disable Toggle */}
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg mb-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Sync Frequency
-            </label>
-            <select
-              value={settings.frequency}
-              onChange={(e) =>
-                setSettings((prev) => ({ ...prev, frequency: e.target.value }))
-              }
-              disabled={!settings.enabled}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-100"
-            >
-              <option value="manual">Manual Only</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-            </select>
-          </div>
-
-          {/* Time */}
-          {settings.frequency !== "manual" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Sync Time
-                </label>
-                <input
-                  type="time"
-                  value={settings.time}
-                  onChange={(e) =>
-                    setSettings((prev) => ({ ...prev, time: e.target.value }))
-                  }
-                  disabled={!settings.enabled}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-100"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Lag Days */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Transaction Lag Days
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="30"
-              value={settings.lagDays}
-              onChange={(e) =>
-                setSettings((prev) => ({
-                  ...prev,
-                  lagDays: parseInt(e.target.value),
-                }))
-              }
-              disabled={!settings.enabled}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-100"
-            />
-            <p className="text-sm text-gray-500 mt-1">
-              Days to wait before syncing transactions (3 days recommended, like
-              FreeAgent's Amazon integration)
+            <h4 className="font-medium text-gray-900">Enable Auto-Sync</h4>
+            <p className="text-sm text-gray-600">
+              Automatically sync eBay transactions daily at 2:00 AM UK time
             </p>
           </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings.enabled}
+              onChange={toggleAutoSync}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+          </label>
         </div>
-      </div>
 
-      {/* Notifications */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Bell className="h-5 w-5" />
-          Notification Preferences
-        </h3>
-
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                Email Notifications
-              </label>
-              <p className="text-sm text-gray-500">
-                Receive email notifications for sync events
-              </p>
-            </div>
-            <button
-              onClick={() =>
-                setSettings((prev) => ({
-                  ...prev,
-                  notifications: {
-                    ...prev.notifications,
-                    email: !prev.notifications.email,
-                  },
-                }))
-              }
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.notifications.email ? "bg-blue-600" : "bg-gray-200"
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  settings.notifications.email
-                    ? "translate-x-6"
-                    : "translate-x-1"
+        {/* Lag Days Setting */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Transaction Lag (Days)
+          </label>
+          <p className="text-sm text-gray-600 mb-3">
+            Wait this many days before syncing transactions (reduced from Amazon's 3 days for faster eBay processing)
+          </p>
+          <div className="flex gap-2">
+            {[1, 2, 3].map((days) => (
+              <button
+                key={days}
+                onClick={() => updateLagDays(days)}
+                className={`px-4 py-2 rounded-md text-sm font-medium ${
+                  settings.lagDays === days
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
-              />
-            </button>
-          </div>
-
-          {settings.notifications.email && (
-            <div className="pl-4 space-y-3 border-l-2 border-gray-100">
-              <div className="flex items-center justify-between">
-                <label className="text-sm text-gray-600">
-                  Notify on successful sync
-                </label>
-                <button
-                  onClick={() =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      notifications: {
-                        ...prev.notifications,
-                        syncSuccess: !prev.notifications.syncSuccess,
-                      },
-                    }))
-                  }
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    settings.notifications.syncSuccess
-                      ? "bg-blue-600"
-                      : "bg-gray-200"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                      settings.notifications.syncSuccess
-                        ? "translate-x-5"
-                        : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <label className="text-sm text-gray-600">
-                  Notify on sync failures
-                </label>
-                <button
-                  onClick={() =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      notifications: {
-                        ...prev.notifications,
-                        syncFailure: !prev.notifications.syncFailure,
-                      },
-                    }))
-                  }
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    settings.notifications.syncFailure
-                      ? "bg-blue-600"
-                      : "bg-gray-200"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
-                      settings.notifications.syncFailure
-                        ? "translate-x-5"
-                        : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Recent Errors */}
-      {syncStatus.recentErrors && syncStatus.recentErrors.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-red-500" />
-            Recent Sync Errors
-          </h3>
-
-          <div className="space-y-3">
-            {syncStatus.recentErrors.map((error, index) => (
-              <div
-                key={index}
-                className="bg-red-50 border border-red-200 rounded-lg p-4"
               >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-red-800 font-medium">
-                      {formatDateTime(error.date)}
-                    </p>
-                    <p className="text-sm text-red-700 mt-1">{error.error}</p>
-                  </div>
-                  {error.resolved && (
-                    <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded">
-                      Resolved
-                    </span>
-                  )}
-                </div>
-              </div>
+                {days} day{days > 1 ? 's' : ''}
+              </button>
             ))}
           </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Recommended: 2 days (balances accuracy with speed)
+          </p>
         </div>
-      )}
 
-      {/* Action Buttons */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="flex flex-col sm:flex-row gap-3">
+        {/* Notifications */}
+        <div className="mb-6">
+          <h4 className="font-medium text-gray-900 mb-3">Email Notifications</h4>
+          <div className="space-y-3">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={settings.notifications.syncFailure}
+                onChange={(e) => updateNotifications('syncFailure', e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="ml-2 text-sm text-gray-700">Sync failures</span>
+            </label>
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={settings.notifications.syncSuccess}
+                onChange={(e) => updateNotifications('syncSuccess', e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="ml-2 text-sm text-gray-700">Sync successes</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-3">
           <button
             onClick={saveSettings}
             disabled={saving}
-            className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {saving ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Saving...
+              </>
             ) : (
-              <Settings className="h-4 w-4" />
+              'Save Settings'
             )}
-            {saving ? "Saving..." : "Save Settings"}
           </button>
-
           <button
             onClick={testAutoSync}
             disabled={testing || !settings.enabled}
-            className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
           >
             {testing ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Testing...
+              </>
             ) : (
-              <Play className="h-4 w-4" />
+              <>
+                <Play className="h-4 w-4" />
+                Test Now
+              </>
             )}
-            {testing ? "Testing..." : "Test Auto-Sync"}
           </button>
-        </div>
-
-        <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-          <h4 className="text-sm font-medium text-blue-900 mb-2">
-            How Auto-Sync Works (FreeAgent Pattern)
-          </h4>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>
-              • Transactions are synced with a {settings.lagDays}-day delay
-              (like Amazon integration)
-            </li>
-            <li>• Automatic duplicate detection prevents double-entries</li>
-            <li>• Failed syncs are automatically retried up to 3 times</li>
-            <li>• Auto-sync is disabled after max retries to prevent errors</li>
-            <li>• All sync activity is logged for your review</li>
-          </ul>
         </div>
       </div>
 
-      {/* Help Section */}
-      <div className="bg-gray-50 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Need Help?</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
+      {/* Status Information */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Sync Status</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h4 className="font-medium text-gray-900 mb-2">
-              Why use a 3-day delay?
-            </h4>
-            <p>
-              Like FreeAgent's Amazon integration, the 3-day delay ensures all
-              transaction details are finalized before syncing, reducing errors
-              and corrections.
-            </p>
+            <h4 className="font-medium text-gray-700 mb-2">Schedule</h4>
+            <div className="space-y-1 text-sm">
+              <div>
+                <span className="text-gray-600">Next sync:</span>{' '}
+                <span className="font-medium">
+                  {formatDateTime(settings.nextScheduledSync)}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-600">Last sync:</span>{' '}
+                <span className="font-medium">
+                  {formatDateTime(settings.lastAutoSync)}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-600">Retry count:</span>{' '}
+                <span className={`font-medium ${settings.retryCount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                  {settings.retryCount}/3
+                </span>
+              </div>
+            </div>
           </div>
           <div>
-            <h4 className="font-medium text-gray-900 mb-2">
-              What if sync fails?
-            </h4>
-            <p>
-              The system automatically retries up to 3 times. After that,
-              auto-sync is paused and you'll receive a notification to resolve
-              any issues.
-            </p>
+            <h4 className="font-medium text-gray-700 mb-2">Statistics</h4>
+            <div className="space-y-1 text-sm">
+              <div>
+                <span className="text-gray-600">Total syncs:</span>{' '}
+                <span className="font-medium">{settings.stats.totalAutoSyncs}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Successful:</span>{' '}
+                <span className="font-medium text-green-600">{settings.stats.successfulAutoSyncs}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Failed:</span>{' '}
+                <span className="font-medium text-red-600">{settings.stats.failedAutoSyncs}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Avg transactions:</span>{' '}
+                <span className="font-medium">{settings.stats.averageTransactionsPerSync}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
