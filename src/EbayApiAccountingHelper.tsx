@@ -211,6 +211,16 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
         
+        {/* App Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent mb-2">
+            eBay FreeAgent Sync
+          </h1>
+          <p className="text-gray-600 text-sm">
+            Automated eBay transaction sync with FreeAgent accounting
+          </p>
+        </div>
+        
         <TrialAlert />
 
         {error && (
