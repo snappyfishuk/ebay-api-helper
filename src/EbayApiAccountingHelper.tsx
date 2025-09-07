@@ -131,24 +131,24 @@ const StatusCards: React.FC<{
       <div className="bg-white border rounded-lg p-4 text-center">
         <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ebayConnected ? 'bg-green-500' : 'bg-gray-300'}`}></div>
         <div className="text-sm font-medium">eBay</div>
-        <div className="text-xs text-gray-500 truncate" title={getEbayDisplayText()}>
-          {getEbayDisplayText()}
+        <div className="text-xs text-gray-500 truncate" title={ebayDisplayText}>
+          {ebayDisplayText}
         </div>
       </div>
       
       <div className="bg-white border rounded-lg p-4 text-center">
         <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${freeagentConnected ? 'bg-green-500' : 'bg-gray-300'}`}></div>
         <div className="text-sm font-medium">FreeAgent</div>
-        <div className="text-xs text-gray-500 truncate" title={getFreeAgentDisplayText()}>
-          {getFreeAgentDisplayText()}
+        <div className="text-xs text-gray-500 truncate" title={freeagentDisplayText}>
+          {freeagentDisplayText}
         </div>
       </div>
       
       <div className="bg-white border rounded-lg p-4 text-center">
         <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ebayAccountReady ? 'bg-green-500' : 'bg-gray-300'}`}></div>
         <div className="text-sm font-medium">Bank Account</div>
-        <div className="text-xs text-gray-500 truncate" title={getBankAccountDisplayText()}>
-          {getBankAccountDisplayText()}
+        <div className="text-xs text-gray-500 truncate" title={bankDisplayText}>
+          {bankDisplayText}
         </div>
       </div>
     </div>
@@ -307,4 +307,4 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
   );
 };
 
-export default EbayApiAccountingHelper; 
+export default EbayApiAccountingHelper;
