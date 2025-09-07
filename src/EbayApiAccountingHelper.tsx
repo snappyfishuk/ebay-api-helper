@@ -18,8 +18,8 @@ interface EbayApiAccountingHelperProps {
 
 type TabId = 'setup' | 'import' | 'transactions' | 'entries';
 
-// Minimal Trial Alert
-const TrialAlert: React.FC = () => {
+// Minimal Trial Alert with Test User Detection
+const TrialAlert: React.FC<{ user?: User }> = ({ user }) => {
   const [trialData, setTrialData] = useState<any>(null);
 
   useEffect(() => {
@@ -44,11 +44,8 @@ const TrialAlert: React.FC = () => {
     fetchTrial();
   }, []);
 
-  // Get current user email for test user detection
-  const userEmail = localStorage.getItem('userEmail') || 
-    JSON.parse(localStorage.getItem('user') || '{}').email;
-  
-  const isTestUser = userEmail === 'gary.arnold@hotmail.co.uk';
+  // Check if this is a test user
+  const isTestUser = user?.email === 'gary.arnold@hotmail.co.uk';
 
   // Show test user banner
   if (isTestUser) {
@@ -187,7 +184,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
           </p>
         </div>
         
-        <TrialAlert />
+        <TrialAlert user={user} />
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
