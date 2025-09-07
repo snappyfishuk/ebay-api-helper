@@ -1,4 +1,4 @@
-// EbayApiAccountingHelper.tsx - Enhanced Version with User Data
+// EbayApiAccountingHelper.tsx - Clean Version with Simple Username Fix
 import React, { useState, useEffect } from "react";
 import { 
   useEbayConnection, 
@@ -18,7 +18,7 @@ interface EbayApiAccountingHelperProps {
 
 type TabId = 'setup' | 'import' | 'transactions' | 'entries';
 
-// Minimal Trial Alert - Only shows when urgent
+// Minimal Trial Alert
 const TrialAlert: React.FC = () => {
   const [trialData, setTrialData] = useState<any>(null);
 
@@ -44,7 +44,6 @@ const TrialAlert: React.FC = () => {
     fetchTrial();
   }, []);
 
-  // Only show if trial expires soon
   if (!trialData || trialData.subscriptionStatus !== 'trial' || 
       (trialData.daysRemaining && trialData.daysRemaining > 5)) {
     return null;
@@ -64,91 +63,57 @@ const TrialAlert: React.FC = () => {
   );
 };
 
-// Enhanced Status Cards with actual user details
+// Simple Status Cards - No more ugly eBay user ID
 const StatusCards: React.FC<{ 
   ebayConnected: boolean; 
   freeagentConnected: boolean; 
   ebayAccountReady: boolean;
   bankAccountName?: string;
   user?: User;
-  ebayConnection?: any;
-  freeagentConnection?: any;
 }> = ({ 
   ebayConnected, 
   freeagentConnected, 
   ebayAccountReady, 
   bankAccountName, 
-  user,
-  ebayConnection,
-  freeagentConnection 
+  user
 }) => {
   
-  // Extract user information from available data
-  const getEbayDisplayText = () => {
-    if (!ebayConnected) return 'Setup needed';
+  // Simple display logic - no more ugly user IDs
+  const ebayText = ebayConnected 
+    ? `Connected (${user?.ebayConnection?.environment || 'production'})`
+    : 'Setup needed';
     
-    // Try to get eBay username from various possible sources
-    const ebayUserId = user?.ebayConnection?.userId || 
-                      ebayConnection?.userId || 
-                      ebayConnection?.connection?.userId;
+  const freeagentText = freeagentConnected 
+    ? (user?.email || 'Connected')
+    : 'Setup needed';
     
-    if (ebayUserId) {
-      return ebayUserId;
-    }
-    
-    // Fallback to environment info if available
-    const environment = user?.ebayConnection?.environment || 
-                        ebayConnection?.environment;
-    
-    return environment ? `Connected (${environment})` : 'Connected';
-  };
-
-  const getFreeAgentDisplayText = () => {
-    if (!freeagentConnected) return 'Setup needed';
-    
-    // Try to get email from user object
-    const userEmail = user?.email;
-    
-    if (userEmail) {
-      return userEmail;
-    }
-    
-    // Try to get company ID if available
-    const companyId = user?.freeagentConnection?.companyId || 
-                      freeagentConnection?.companyId;
-    
-    return companyId ? `Company: ${companyId}` : 'Connected';
-  };
-
-  const getBankAccountDisplayText = () => {
-    if (!ebayAccountReady) return 'Setup needed';
-    
-    return bankAccountName || 'eBay Sales Account';
-  };
+  const bankText = ebayAccountReady 
+    ? (bankAccountName || 'eBay Sales Account')
+    : 'Setup needed';
 
   return (
     <div className="grid grid-cols-3 gap-4 mb-6">
       <div className="bg-white border rounded-lg p-4 text-center">
         <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ebayConnected ? 'bg-green-500' : 'bg-gray-300'}`}></div>
         <div className="text-sm font-medium">eBay</div>
-        <div className="text-xs text-gray-500 truncate" title={ebayDisplayText}>
-          {ebayDisplayText}
+        <div className="text-xs text-gray-500 truncate" title={ebayText}>
+          {ebayText}
         </div>
       </div>
       
       <div className="bg-white border rounded-lg p-4 text-center">
         <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${freeagentConnected ? 'bg-green-500' : 'bg-gray-300'}`}></div>
         <div className="text-sm font-medium">FreeAgent</div>
-        <div className="text-xs text-gray-500 truncate" title={freeagentDisplayText}>
-          {freeagentDisplayText}
+        <div className="text-xs text-gray-500 truncate" title={freeagentText}>
+          {freeagentText}
         </div>
       </div>
       
       <div className="bg-white border rounded-lg p-4 text-center">
         <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ebayAccountReady ? 'bg-green-500' : 'bg-gray-300'}`}></div>
         <div className="text-sm font-medium">Bank Account</div>
-        <div className="text-xs text-gray-500 truncate" title={bankDisplayText}>
-          {bankDisplayText}
+        <div className="text-xs text-gray-500 truncate" title={bankText}>
+          {bankText}
         </div>
       </div>
     </div>
@@ -175,16 +140,6 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
         ebayConnection.checkConnection(),
         freeagentConnection.checkConnection(),
       ]);
-
-      // 🔍 DEBUG: Let's see what data we have access to
-      console.log("=== DEBUG: USER OBJECT ===");
-      console.log(user);
-      
-      console.log("=== DEBUG: EBAY CONNECTION OBJECT ===");
-      console.log(ebayConnection.connection);
-      
-      console.log("=== DEBUG: FREEAGENT CONNECTION OBJECT ===");
-      console.log(freeagentConnection.connection);
     }
   }, [user]);
 
@@ -266,13 +221,11 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
         )}
 
         <StatusCards 
-          ebayConnected={connections.ebay.isConnected}
-          freeagentConnected={connections.freeagent.isConnected}
+          ebayConnected={user?.ebayConnection?.isConnected || connections.ebay.isConnected}
+          freeagentConnected={user?.freeagentConnection?.isConnected || connections.freeagent.isConnected}
           ebayAccountReady={freeagentConnection.ebayAccountStatus.hasEbayAccount}
           bankAccountName={freeagentConnection.ebayAccountStatus.bankAccount?.name}
           user={user}
-          ebayConnection={ebayConnection.connection}
-          freeagentConnection={freeagentConnection.connection}
         />
 
         <div className="mb-6">
