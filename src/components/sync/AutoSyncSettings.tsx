@@ -18,6 +18,13 @@ interface AutoSyncSettings {
     failedAutoSyncs: number;
     averageTransactionsPerSync: number;
   };
+  weeklyStats?: {
+    totalSyncs: number;
+    totalTransactions: number;
+    successfulSyncs: number;
+    lastSyncDate: string | null;
+    summary: string;
+  };
   fixedSettings: {
     syncTime: string;
     timezone: string;
@@ -46,6 +53,13 @@ const AutoSyncSettings: React.FC = () => {
       successfulAutoSyncs: 0,
       failedAutoSyncs: 0,
       averageTransactionsPerSync: 0,
+    },
+    weeklyStats: {
+      totalSyncs: 0,
+      totalTransactions: 0,
+      successfulSyncs: 0,
+      lastSyncDate: null,
+      summary: 'No syncs in the past week'
     },
     fixedSettings: {
       syncTime: '02:00 AM',
@@ -423,6 +437,17 @@ const AutoSyncSettings: React.FC = () => {
       {/* Status Information */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Sync Status</h3>
+        
+        {/* Weekly Summary */}
+        {settings.weeklyStats && (
+          <div className="bg-blue-50 rounded-lg p-4 mb-6">
+            <h4 className="font-medium text-blue-900 mb-2">This Week's Activity</h4>
+            <p className="text-blue-800 text-sm">
+              {settings.weeklyStats.summary}
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h4 className="font-medium text-gray-700 mb-2">Schedule</h4>
@@ -474,4 +499,4 @@ const AutoSyncSettings: React.FC = () => {
   );
 };
 
-export default AutoSyncSettings; 
+export default AutoSyncSettings;
