@@ -1,12 +1,5 @@
-// EbayApiAccountingHelper.tsx
+// EbayApiAccountingHelper.tsx - Enhanced Version with User Data
 import React, { useState, useEffect } from "react";
-import AccountInfo from "./components/AccountInfo";
-import { SetupTab } from "./components/tabs/SetupTab";
-import { ImportTab } from "./components/tabs/ImportTab";
-import { TransactionsTab } from "./components/tabs/TransactionsTab";
-import { FreeAgentEntriesTab } from "./components/tabs/FreeAgentEntriesTab";
-import { ErrorMessage } from "./components/common/ErrorMessage";
-import { LoadingIndicator } from "./components/common/LoadingIndicator";
 import { 
   useEbayConnection, 
   useFreeAgentConnection, 
@@ -14,6 +7,10 @@ import {
   useSetupStatus 
 } from "./hooks";
 import { User, Connections } from "./types";
+import { SetupTab } from "./components/tabs/SetupTab";
+import { ImportTab } from "./components/tabs/ImportTab";
+import { TransactionsTab } from "./components/tabs/TransactionsTab";
+import { FreeAgentEntriesTab } from "./components/tabs/FreeAgentEntriesTab";
 
 interface EbayApiAccountingHelperProps {
   user: User;
@@ -21,80 +18,190 @@ interface EbayApiAccountingHelperProps {
 
 type TabId = 'setup' | 'import' | 'transactions' | 'entries';
 
-interface Tab {
-  id: TabId;
-  label: string;
-  icon: string;
-}
+// Minimal Trial Alert - Only shows when urgent
+const TrialAlert: React.FC = () => {
+  const [trialData, setTrialData] = useState<any>(null);
 
-const TABS: Tab[] = [
-  { id: "setup", label: "Connections", icon: "🔗" },
-  { id: "import", label: "Import & Sync", icon: "📥" },
-  { id: "transactions", label: "Transactions", icon: "📊" },
-  { id: "entries", label: "FreeAgent Entries", icon: "📋" },
-];
+  useEffect(() => {
+    const fetchTrial = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(
+          `${process.env.REACT_APP_API_URL}/api/users/subscription`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: 'include',
+          }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setTrialData(data.data);
+        }
+      } catch (error) {
+        console.error('Trial fetch error:', error);
+      }
+    };
+    fetchTrial();
+  }, []);
 
-/**
- * Main component for eBay API Accounting Helper
- * CRITICAL: All original functionality is preserved with added type safety
- */
+  // Only show if trial expires soon
+  if (!trialData || trialData.subscriptionStatus !== 'trial' || 
+      (trialData.daysRemaining && trialData.daysRemaining > 5)) {
+    return null;
+  }
+
+  return (
+    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+      <div className="flex justify-between items-center">
+        <span className="text-sm text-yellow-800">
+          Trial ends in {trialData.daysRemaining} day{trialData.daysRemaining === 1 ? '' : 's'}
+        </span>
+        <button className="px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700">
+          Upgrade
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Enhanced Status Cards with actual user details
+const StatusCards: React.FC<{ 
+  ebayConnected: boolean; 
+  freeagentConnected: boolean; 
+  ebayAccountReady: boolean;
+  bankAccountName?: string;
+  user?: User;
+  ebayConnection?: any;
+  freeagentConnection?: any;
+}> = ({ 
+  ebayConnected, 
+  freeagentConnected, 
+  ebayAccountReady, 
+  bankAccountName, 
+  user,
+  ebayConnection,
+  freeagentConnection 
+}) => {
+  
+  // Extract user information from available data
+  const getEbayDisplayText = () => {
+    if (!ebayConnected) return 'Setup needed';
+    
+    // Try to get eBay username from various possible sources
+    const ebayUserId = user?.ebayConnection?.userId || 
+                      ebayConnection?.userId || 
+                      ebayConnection?.connection?.userId;
+    
+    if (ebayUserId) {
+      return ebayUserId;
+    }
+    
+    // Fallback to environment info if available
+    const environment = user?.ebayConnection?.environment || 
+                        ebayConnection?.environment;
+    
+    return environment ? `Connected (${environment})` : 'Connected';
+  };
+
+  const getFreeAgentDisplayText = () => {
+    if (!freeagentConnected) return 'Setup needed';
+    
+    // Try to get email from user object
+    const userEmail = user?.email;
+    
+    if (userEmail) {
+      return userEmail;
+    }
+    
+    // Try to get company ID if available
+    const companyId = user?.freeagentConnection?.companyId || 
+                      freeagentConnection?.companyId;
+    
+    return companyId ? `Company: ${companyId}` : 'Connected';
+  };
+
+  const getBankAccountDisplayText = () => {
+    if (!ebayAccountReady) return 'Setup needed';
+    
+    return bankAccountName || 'eBay Sales Account';
+  };
+
+  return (
+    <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="bg-white border rounded-lg p-4 text-center">
+        <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ebayConnected ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+        <div className="text-sm font-medium">eBay</div>
+        <div className="text-xs text-gray-500 truncate" title={getEbayDisplayText()}>
+          {getEbayDisplayText()}
+        </div>
+      </div>
+      
+      <div className="bg-white border rounded-lg p-4 text-center">
+        <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${freeagentConnected ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+        <div className="text-sm font-medium">FreeAgent</div>
+        <div className="text-xs text-gray-500 truncate" title={getFreeAgentDisplayText()}>
+          {getFreeAgentDisplayText()}
+        </div>
+      </div>
+      
+      <div className="bg-white border rounded-lg p-4 text-center">
+        <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ebayAccountReady ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+        <div className="text-sm font-medium">Bank Account</div>
+        <div className="text-xs text-gray-500 truncate" title={getBankAccountDisplayText()}>
+          {getBankAccountDisplayText()}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user }) => {
   const [activeTab, setActiveTab] = useState<TabId>("setup");
-  const [globalError, setGlobalError] = useState<string | null>(null);
-  const [globalLoading, setGlobalLoading] = useState(false);
-
-  // Use custom hooks for connections
+  
   const ebayConnection = useEbayConnection();
   const freeagentConnection = useFreeAgentConnection();
-
-  // Combine connections for compatibility with existing logic
+  const transactionsManager = useTransactions(ebayConnection.connection.isConnected);
+  
   const connections: Connections = {
     ebay: ebayConnection.connection,
     freeagent: freeagentConnection.connection,
   };
-
-  // Use transactions hook
-  const transactionsManager = useTransactions(ebayConnection.connection.isConnected);
-
-  // Calculate setup status
+  
   const setupStatus = useSetupStatus(connections, freeagentConnection.ebayAccountStatus);
 
-  // Check connections on mount
   useEffect(() => {
     if (user) {
-      checkAllConnections();
+      Promise.all([
+        ebayConnection.checkConnection(),
+        freeagentConnection.checkConnection(),
+      ]);
+
+      // 🔍 DEBUG: Let's see what data we have access to
+      console.log("=== DEBUG: USER OBJECT ===");
+      console.log(user);
+      
+      console.log("=== DEBUG: EBAY CONNECTION OBJECT ===");
+      console.log(ebayConnection.connection);
+      
+      console.log("=== DEBUG: FREEAGENT CONNECTION OBJECT ===");
+      console.log(freeagentConnection.connection);
     }
   }, [user]);
 
-  const checkAllConnections = async () => {
-    await Promise.all([
-      ebayConnection.checkConnection(),
-      freeagentConnection.checkConnection(),
-    ]);
-  };
+  const renderTab = () => {
+    const commonProps = {
+      connections,
+      setupStatus,
+      ebayAccountStatus: freeagentConnection.ebayAccountStatus,
+      isLoading: ebayConnection.isLoading || freeagentConnection.isLoading || transactionsManager.isLoading,
+    };
 
-  // Combine errors from all sources
-  const currentError = globalError || 
-    ebayConnection.error || 
-    freeagentConnection.error || 
-    transactionsManager.error;
-
-  // Combine loading states
-  const isLoading = globalLoading || 
-    ebayConnection.isLoading || 
-    freeagentConnection.isLoading || 
-    transactionsManager.isLoading;
-
-  // Tab rendering functions (preserving all original logic)
-  const renderActiveTab = () => {
     switch (activeTab) {
       case 'setup':
         return (
           <SetupTab
-            connections={connections}
-            ebayAccountStatus={freeagentConnection.ebayAccountStatus}
+            {...commonProps}
             availableEbayAccounts={freeagentConnection.availableEbayAccounts}
-            setupStatus={setupStatus}
             user={user}
             onConnectEbay={ebayConnection.connect}
             onDisconnectEbay={ebayConnection.disconnect}
@@ -102,35 +209,25 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
             onDisconnectFreeAgent={freeagentConnection.disconnect}
             onCreateEbayAccount={freeagentConnection.createEbayAccount}
             onSelectEbayAccount={freeagentConnection.selectExistingEbayAccount}
-            isLoading={isLoading}
           />
         );
       case 'import':
         return (
           <ImportTab
-            connections={connections}
-            setupStatus={setupStatus}
-            ebayAccountStatus={freeagentConnection.ebayAccountStatus}
+            {...commonProps}
             selectedDateRange={transactionsManager.selectedDateRange}
             onStartDateChange={transactionsManager.handleStartDateChange}
             onEndDateChange={transactionsManager.handleEndDateChange}
             onSetDatePreset={transactionsManager.setDatePreset}
             onFetchTransactions={transactionsManager.fetchTransactions}
-            onSyncToFreeAgent={() => 
-              transactionsManager.syncToFreeAgent(freeagentConnection.ebayAccountStatus)
-            }
+            onSyncToFreeAgent={() => transactionsManager.syncToFreeAgent(freeagentConnection.ebayAccountStatus)}
             onExportCsv={transactionsManager.exportToCsv}
             processedData={transactionsManager.processedData}
             syncStatus={transactionsManager.syncStatus}
-            isLoading={isLoading}
           />
         );
       case 'transactions':
-        return (
-          <TransactionsTab
-            transactions={transactionsManager.transactions}
-          />
-        );
+        return <TransactionsTab transactions={transactionsManager.transactions} />;
       case 'entries':
         return (
           <FreeAgentEntriesTab
@@ -143,139 +240,68 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
     }
   };
 
+  const error = ebayConnection.error || freeagentConnection.error || transactionsManager.error;
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <AccountInfo />
+      <div className="max-w-6xl mx-auto px-4">
+        
+        <TrialAlert />
 
-        {/* Global Error Display */}
-        {currentError && (
-          <ErrorMessage
-            error={currentError}
-            onDismiss={() => {
-              setGlobalError(null);
-              ebayConnection.error && ebayConnection.checkConnection();
-              freeagentConnection.error && freeagentConnection.checkConnection();
-            }}
-          />
-        )}
-
-        {/* Global Loading Indicator */}
-        {isLoading && <LoadingIndicator />}
-
-        {/* Tab Navigation */}
-        <div className="mb-8">
-          <nav className="flex space-x-8 justify-center">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? "bg-blue-600 text-white shadow-lg"
-                    : "bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50 border border-gray-200"
-                }`}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+            <div className="flex justify-between items-center">
+              <span className="text-red-800 text-sm">{error}</span>
+              <button 
+                onClick={() => {
+                  ebayConnection.error && ebayConnection.checkConnection();
+                  freeagentConnection.error && freeagentConnection.checkConnection();
+                }}
+                className="text-red-600 text-xs hover:text-red-800"
               >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
+                Retry
               </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Active Tab Content */}
-        <div className="tab-content">
-          {renderActiveTab()}
-        </div>
-
-        {/* Footer Status Section - EXACTLY as original */}
-        <div className="mt-16 text-center">
-          <div className="bg-white rounded-xl border border-gray-200 p-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Streamlined Production Integration
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-sm text-gray-600">
-              <div className="flex flex-col items-center space-y-2">
-                <div className="text-2xl">🔗</div>
-                <div className="font-medium text-gray-900">eBay Connection</div>
-                <div
-                  className={`px-2 py-1 rounded text-xs ${
-                    connections.ebay.isConnected
-                      ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {connections.ebay.isConnected ? "Connected" : "Not Connected"}
-                </div>
-              </div>
-              <div className="flex flex-col items-center space-y-2">
-                <div className="text-2xl">💰</div>
-                <div className="font-medium text-gray-900">
-                  FreeAgent Connection
-                </div>
-                <div
-                  className={`px-2 py-1 rounded text-xs ${
-                    connections.freeagent.isConnected
-                      ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {connections.freeagent.isConnected
-                    ? "Connected"
-                    : "Not Connected"}
-                </div>
-              </div>
-              <div className="flex flex-col items-center space-y-2">
-                <div className="text-2xl">🏦</div>
-                <div className="font-medium text-gray-900">eBay Account</div>
-                <div
-                  className={`px-2 py-1 rounded text-xs ${
-                    freeagentConnection.ebayAccountStatus.hasEbayAccount
-                      ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {freeagentConnection.ebayAccountStatus.hasEbayAccount
-                    ? "Ready"
-                    : "Setup Required"}
-                </div>
-              </div>
-              <div className="flex flex-col items-center space-y-2">
-                <div className="text-2xl">📊</div>
-                <div className="font-medium text-gray-900">Enhanced Data</div>
-                <div className="text-gray-600">
-                  {transactionsManager.transactions.length} transactions with rich descriptions
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <p className="text-xs text-blue-800">
-                <strong>Streamlined Setup:</strong> Auto-creates dedicated eBay
-                Sales account, eliminates manual bank account selection, follows
-                FreeAgent best practices. Each user connects their own eBay
-                account for complete data isolation.
-              </p>
-            </div>
-
-            <div className="mt-4">
-              <div className="flex items-center justify-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">
-                  Setup Status:
-                </span>
-                <div
-                  className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    setupStatus.readyToSync
-                      ? "bg-green-100 text-green-800"
-                      : "bg-yellow-100 text-yellow-800"
-                  }`}
-                >
-                  {setupStatus.readyToSync ? "Ready to Sync" : "Setup Required"}
-                </div>
-              </div>
             </div>
           </div>
+        )}
+
+        <StatusCards 
+          ebayConnected={connections.ebay.isConnected}
+          freeagentConnected={connections.freeagent.isConnected}
+          ebayAccountReady={freeagentConnection.ebayAccountStatus.hasEbayAccount}
+          bankAccountName={freeagentConnection.ebayAccountStatus.bankAccount?.name}
+          user={user}
+          ebayConnection={ebayConnection.connection}
+          freeagentConnection={freeagentConnection.connection}
+        />
+
+        <div className="mb-6">
+          <div className="flex space-x-2">
+            {[
+              { id: 'setup', label: 'Setup' },
+              { id: 'import', label: 'Import & Sync' },
+              { id: 'transactions', label: 'Transactions' },
+              { id: 'entries', label: 'FreeAgent Entries' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabId)}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        <div className="bg-white rounded-lg border p-6">
+          {renderTab()}
+        </div>
+
       </div>
     </div>
   );
