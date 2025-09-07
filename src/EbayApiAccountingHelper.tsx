@@ -216,13 +216,22 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
               <p className="text-gray-600 text-sm">View eBay transactions and FreeAgent entries</p>
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div>
-                <h4 className="text-md font-semibold text-gray-900 mb-4">eBay Transactions</h4>
+            {/* eBay Transactions - Top Box */}
+            <div className="bg-white border rounded-lg">
+              <div className="p-4 border-b bg-gray-50">
+                <h4 className="text-md font-semibold text-gray-900">eBay Transactions</h4>
+              </div>
+              <div className="max-h-96 overflow-y-auto">
                 <TransactionsTab transactions={transactionsManager.transactions} />
               </div>
-              <div>
-                <h4 className="text-md font-semibold text-gray-900 mb-4">FreeAgent Entries</h4>
+            </div>
+            
+            {/* FreeAgent Entries - Bottom Box */}
+            <div className="bg-white border rounded-lg">
+              <div className="p-4 border-b bg-gray-50">
+                <h4 className="text-md font-semibold text-gray-900">FreeAgent Entries</h4>
+              </div>
+              <div className="max-h-96 overflow-y-auto">
                 <FreeAgentEntriesTab
                   processedData={transactionsManager.processedData}
                   ebayAccountStatus={freeagentConnection.ebayAccountStatus}
