@@ -18,6 +18,21 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
   const [saving, setSaving] = useState(false);
   const [lagDays, setLagDays] = useState(2);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
+  
+  // Simple message state - just string for message, string for type
+  const [msgText, setMsgText] = useState('');
+  const [msgType, setMsgType] = useState('');
+
+  // Auto-clear messages after 5 seconds
+  useEffect(() => {
+    if (msgText) {
+      const timer = setTimeout(() => {
+        setMsgText('');
+        setMsgType('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [msgText]);
 
   // Load current settings from user data
   useEffect(() => {
@@ -26,6 +41,12 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
       setLagDays(user.autoSync.lagDays || 2);
     }
   }, [user]);
+
+  // Helper to show messages
+  const showMsg = (type: string, text: string) => {
+    setMsgType(type);
+    setMsgText(text);
+  };
 
   // Toggle auto-sync on/off
   const handleToggleAutoSync = async () => {
@@ -50,28 +71,24 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
       
       if (response.ok) {
         setAutoSyncEnabled(!autoSyncEnabled);
-        alert('Auto-sync settings updated successfully!');
+        showMsg('success', `Auto-sync ${!autoSyncEnabled ? 'enabled' : 'disabled'} successfully!`);
       } else {
         const error = await response.text();
         console.error('Toggle failed:', error);
-        alert('Failed to update auto-sync settings');
+        showMsg('error', 'Failed to update auto-sync settings');
       }
     } catch (error) {
       console.error('Auto-sync toggle error:', error);
-      alert('Network error - please try again');
+      showMsg('error', 'Network error - please try again');
     } finally {
       setSaving(false);
     }
   };
 
   // Update lag days
-  const updateLagDays = async (newLagDays: number) => {
+  const updateLagDays = (newLagDays: number) => {
     setLagDays(newLagDays);
-    
-    // Auto-save when auto-sync is enabled
-    if (autoSyncEnabled) {
-      await saveSettings(newLagDays);
-    }
+    showMsg('info', `Transaction lag set to ${newLagDays} day${newLagDays > 1 ? 's' : ''}. Click "Save Settings" to apply.`);
   };
 
   // Save settings function
@@ -96,15 +113,15 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
       );
       
       if (response.ok) {
-        alert('Settings saved successfully!');
+        showMsg('success', 'Settings saved successfully!');
       } else {
         const error = await response.text();
         console.error('Save failed:', error);
-        alert('Failed to save settings');
+        showMsg('error', 'Failed to save settings');
       }
     } catch (error) {
       console.error('Save settings error:', error);
-      alert('Network error - please try again');
+      showMsg('error', 'Network error - please try again');
     } finally {
       setSaving(false);
     }
@@ -129,15 +146,15 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
       
       if (response.ok) {
         const result = await response.json();
-        alert(`Test sync completed! ${result.message || 'Check sync history for results.'}`);
+        showMsg('success', `Test sync completed! ${result.message || 'Check sync history for results.'}`);
       } else {
         const error = await response.text();
         console.error('Test failed:', error);
-        alert('Test sync failed - check console for details');
+        showMsg('error', 'Test sync failed - check console for details');
       }
     } catch (error) {
       console.error('Test sync error:', error);
-      alert('Network error during test - please try again');
+      showMsg('error', 'Network error during test - please try again');
     } finally {
       setSaving(false);
     }
@@ -159,6 +176,49 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Message Display */}
+      {msgText && (
+        <div className={`rounded-lg p-4 ${
+          msgType === 'success'
+            ? 'bg-green-50 text-green-800 border border-green-200'
+            : msgType === 'error'
+            ? 'bg-red-50 text-red-800 border border-red-200'
+            : 'bg-blue-50 text-blue-800 border border-blue-200'
+        }`}>
+          <div className="flex justify-between items-center">
+            <div className="flex items-center">
+              {msgType === 'success' && (
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              )}
+              {msgType === 'error' && (
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              )}
+              {msgType === 'info' && (
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              )}
+              <span className="text-sm font-medium">{msgText}</span>
+            </div>
+            <button
+              onClick={() => {
+                setMsgText('');
+                setMsgType('');
+              }}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Auto-Sync Status Card */}
       <div className="bg-green-50 border border-green-200 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
