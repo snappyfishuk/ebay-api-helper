@@ -34,6 +34,135 @@ const TABS: Tab[] = [
   { id: "entries", label: "FreeAgent Entries", icon: "📋" },
 ];
 
+// Trial Status Component
+interface TrialData {
+  subscriptionStatus: string;
+  trialEndsAt: string;
+  isTrialActive: boolean;
+  hasActiveSubscription: boolean;
+  daysRemaining: number | null;
+}
+
+const TrialStatusBanner: React.FC = () => {
+  const [trialData, setTrialData] = useState<TrialData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTrialStatus();
+  }, []);
+
+  const fetchTrialStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/users/subscription`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setTrialData(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching trial status:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading || !trialData || trialData.subscriptionStatus !== 'trial') {
+    return null;
+  }
+
+  const formatTimeRemaining = (daysRemaining: number) => {
+    if (daysRemaining <= 0) return "Trial expired";
+    if (daysRemaining === 1) return "1 day remaining";
+    return `${daysRemaining} days remaining`;
+  };
+
+  const getStatusColor = (daysRemaining: number | null, isActive: boolean) => {
+    if (!isActive || !daysRemaining) return "red";
+    if (daysRemaining <= 2) return "red";
+    if (daysRemaining <= 5) return "yellow";
+    return "green";
+  };
+
+  const statusColor = getStatusColor(trialData.daysRemaining, trialData.isTrialActive);
+
+  return (
+    <div className={`rounded-lg border p-4 mb-6 ${
+      statusColor === 'red'
+        ? 'bg-red-50 border-red-200'
+        : statusColor === 'yellow'
+        ? 'bg-yellow-50 border-yellow-200'
+        : 'bg-green-50 border-green-200'
+    }`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="text-2xl">
+            {statusColor === 'red' ? '⚠️' : statusColor === 'yellow' ? '⏰' : '✅'}
+          </div>
+          <div>
+            <h3 className={`font-medium ${
+              statusColor === 'red'
+                ? 'text-red-900'
+                : statusColor === 'yellow'
+                ? 'text-yellow-900'
+                : 'text-green-900'
+            }`}>
+              {trialData.isTrialActive ? 'Free Trial Active' : 'Trial Expired'}
+            </h3>
+            <p className={`text-sm ${
+              statusColor === 'red'
+                ? 'text-red-700'
+                : statusColor === 'yellow'
+                ? 'text-yellow-700'
+                : 'text-green-700'
+            }`}>
+              {trialData.isTrialActive && trialData.daysRemaining
+                ? `${formatTimeRemaining(trialData.daysRemaining)} in your free trial`
+                : 'Your trial has ended. Upgrade to continue using all features.'}
+            </p>
+          </div>
+        </div>
+        
+        {(!trialData.isTrialActive || (trialData.daysRemaining && trialData.daysRemaining <= 5)) && (
+          <button className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            statusColor === 'red'
+              ? 'bg-red-600 text-white hover:bg-red-700'
+              : 'bg-yellow-600 text-white hover:bg-yellow-700'
+          }`}>
+            Upgrade Now
+          </button>
+        )}
+      </div>
+
+      {trialData.isTrialActive && trialData.trialEndsAt && (
+        <div className="mt-3 pt-3 border-t border-gray-200">
+          <div className="flex justify-between text-xs text-gray-600">
+            <span>Trial expires:</span>
+            <span>
+              {new Date(trialData.trialEndsAt).toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 /**
  * Main component for eBay API Accounting Helper
  * CRITICAL: All original functionality is preserved with added type safety
@@ -147,6 +276,9 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <AccountInfo />
+
+        {/* Trial Status Banner */}
+        <TrialStatusBanner />
 
         {/* Global Error Display */}
         {currentError && (

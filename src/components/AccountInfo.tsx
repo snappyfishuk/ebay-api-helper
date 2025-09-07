@@ -1,10 +1,38 @@
-// Compact AccountInfo.js with eBay colors and horizontal layout
+// components/AccountInfo.tsx - Updated with Trial Status
 import React, { useState, useEffect } from "react";
 
-const AccountInfo = () => {
-  const [user, setUser] = useState(null);
-  const [ebay, setEbay] = useState(null);
-  const [freeagent, setFreeagent] = useState(null);
+interface User {
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+interface EbayInfo {
+  userId?: string;
+  username?: string;
+  environment: string;
+  connectedAt?: string;
+}
+
+interface FreeagentInfo {
+  companyId?: string;
+  environment: string;
+  connectedAt?: string;
+}
+
+interface TrialData {
+  subscriptionStatus: string;
+  trialEndsAt: string;
+  isTrialActive: boolean;
+  hasActiveSubscription: boolean;
+  daysRemaining: number | null;
+}
+
+const AccountInfo: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [ebay, setEbay] = useState<EbayInfo | null>(null);
+  const [freeagent, setFreeagent] = useState<FreeagentInfo | null>(null);
+  const [trialData, setTrialData] = useState<TrialData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,6 +57,23 @@ const AccountInfo = () => {
       if (userRes.ok) {
         const userData = await userRes.json();
         setUser(userData.data?.user || userData.user);
+      }
+
+      // Get trial/subscription info
+      try {
+        const trialRes = await fetch(
+          `${process.env.REACT_APP_API_URL}/api/users/subscription`,
+          {
+            headers: getAuthHeaders(),
+            credentials: "include",
+          }
+        );
+        if (trialRes.ok) {
+          const trialResponse = await trialRes.json();
+          setTrialData(trialResponse.data);
+        }
+      } catch (e) {
+        console.log("Trial info fetch failed:", e);
       }
 
       // Get eBay info - try account-info first, fallback to connection-status
@@ -124,6 +169,20 @@ const AccountInfo = () => {
     }
   };
 
+  // Helper functions for trial status
+  const formatTimeRemaining = (daysRemaining: number) => {
+    if (daysRemaining <= 0) return "Trial expired";
+    if (daysRemaining === 1) return "1 day left";
+    return `${daysRemaining} days left`;
+  };
+
+  const getTrialStatusColor = (daysRemaining: number | null, isActive: boolean) => {
+    if (!isActive || !daysRemaining) return "red";
+    if (daysRemaining <= 2) return "red";
+    if (daysRemaining <= 5) return "yellow";
+    return "green";
+  };
+
   if (loading) {
     return (
       <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
@@ -138,8 +197,7 @@ const AccountInfo = () => {
 
   // Helper functions
   const isEbayConnected = ebay && (ebay.userId || ebay.environment);
-  const isFreeagentConnected =
-    freeagent && (freeagent.companyId || freeagent.environment);
+  const isFreeagentConnected = freeagent && (freeagent.companyId || freeagent.environment);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
@@ -152,6 +210,31 @@ const AccountInfo = () => {
               {user.firstName} {user.lastName}
             </span>
             <span className="text-xs text-gray-500">({user.email})</span>
+          </div>
+        )}
+
+        {/* Trial Status - Only show for trial accounts */}
+        {trialData && trialData.subscriptionStatus === 'trial' && (
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${
+              getTrialStatusColor(trialData.daysRemaining, trialData.isTrialActive) === 'red' 
+                ? 'bg-red-500'
+                : getTrialStatusColor(trialData.daysRemaining, trialData.isTrialActive) === 'yellow'
+                ? 'bg-yellow-500'
+                : 'bg-green-500'
+            }`}></div>
+            <span className="text-sm font-medium text-gray-700">Trial:</span>
+            <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+              getTrialStatusColor(trialData.daysRemaining, trialData.isTrialActive) === 'red' 
+                ? 'bg-red-100 text-red-800'
+                : getTrialStatusColor(trialData.daysRemaining, trialData.isTrialActive) === 'yellow'
+                ? 'bg-yellow-100 text-yellow-800'
+                : 'bg-green-100 text-green-800'
+            }`}>
+              {trialData.isTrialActive && trialData.daysRemaining
+                ? formatTimeRemaining(trialData.daysRemaining)
+                : 'Expired'}
+            </span>
           </div>
         )}
 
