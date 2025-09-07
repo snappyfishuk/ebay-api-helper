@@ -1,4 +1,6 @@
-// AutoSyncTab.tsx - Fixed version with working buttons
+// AutoSyncTab.tsx - Debug version to identify the issue
+console.log('🚀 AutoSyncTab.tsx is loading!');
+
 import React, { useState, useEffect } from 'react';
 
 interface AutoSyncTabProps {
@@ -16,12 +18,16 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
   user,
   isLoading,
 }) => {
+  console.log('🔥 AutoSyncTab component rendering!');
+  console.log('🔥 Props:', { connections, setupStatus, user, isLoading });
+  
   const [saving, setSaving] = useState(false);
   const [lagDays, setLagDays] = useState(2); // Default to 2 days
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
 
   // Load current settings
   useEffect(() => {
+    console.log('🔄 useEffect running, user data:', user?.autoSync);
     if (user?.autoSync) {
       setAutoSyncEnabled(user.autoSync.enabled || false);
       setLagDays(user.autoSync.lagDays || 2);
@@ -30,9 +36,18 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
 
   // Toggle auto-sync on/off
   const handleToggleAutoSync = async () => {
+    console.log('🎯 TOGGLE BUTTON CLICKED!', { 
+      current: autoSyncEnabled,
+      setupReady: setupStatus.readyToSync,
+      saving,
+      apiUrl: process.env.REACT_APP_API_URL 
+    });
+    
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
+      console.log('🔑 Token exists:', !!token);
+      
       const response = await fetch(
         `${process.env.REACT_APP_API_URL}/api/autosync/settings`,
         {
@@ -48,6 +63,8 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
           })
         }
       );
+      
+      console.log('📡 API Response:', response.status, response.ok);
       
       if (response.ok) {
         setAutoSyncEnabled(!autoSyncEnabled);
@@ -67,6 +84,8 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
 
   // Update lag days
   const updateLagDays = async (newLagDays: number) => {
+    console.log('🎯 LAG DAYS BUTTON CLICKED!', { newLagDays, current: lagDays });
+    
     setLagDays(newLagDays);
     
     // Auto-save when lag days change
@@ -77,6 +96,8 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
 
   // Save settings function
   const saveSettings = async (customLagDays?: number) => {
+    console.log('🎯 SAVE SETTINGS CLICKED!', { customLagDays, lagDays, autoSyncEnabled });
+    
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
@@ -96,6 +117,8 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
         }
       );
       
+      console.log('📡 Save API Response:', response.status, response.ok);
+      
       if (response.ok) {
         alert('Settings saved successfully!');
       } else {
@@ -113,6 +136,8 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
 
   // Test sync function
   const testAutoSync = async () => {
+    console.log('🎯 TEST NOW BUTTON CLICKED!');
+    
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
@@ -127,6 +152,8 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
           credentials: 'include',
         }
       );
+      
+      console.log('📡 Test API Response:', response.status, response.ok);
       
       if (response.ok) {
         const result = await response.json();
@@ -144,9 +171,33 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     }
   };
 
+  // Add a simple test button first
+  const simpleTest = () => {
+    console.log('🎯 SIMPLE TEST BUTTON WORKS!');
+    alert('Simple button clicked!');
+  };
+
+  console.log('🎨 About to render component with state:', { saving, lagDays, autoSyncEnabled });
+
   return (
     <div className="space-y-6">
       
+      {/* DEBUG SECTION - Remove after testing */}
+      <div className="bg-yellow-100 border border-yellow-400 rounded p-4">
+        <h4 className="font-bold text-yellow-800">🐛 Debug Info:</h4>
+        <p><strong>API URL:</strong> {process.env.REACT_APP_API_URL || 'NOT SET'}</p>
+        <p><strong>Token:</strong> {localStorage.getItem('token') ? 'Present' : 'Missing'}</p>
+        <p><strong>Setup Ready:</strong> {setupStatus?.readyToSync ? 'Yes' : 'No'}</p>
+        <p><strong>Auto-Sync Enabled:</strong> {autoSyncEnabled ? 'Yes' : 'No'}</p>
+        <p><strong>Lag Days:</strong> {lagDays}</p>
+        <button 
+          onClick={simpleTest}
+          className="mt-2 bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+        >
+          🧪 Simple Test Button
+        </button>
+      </div>
+
       {/* Auto-Sync Configuration */}
       <div className="bg-gradient-to-br from-green-50 to-blue-50 border-2 border-green-200 rounded-xl p-6">
         <h3 className="text-lg font-bold text-green-800 mb-4">
@@ -176,7 +227,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
             </div>
             <div className="flex items-center text-green-700">
               <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414L2.586 7l3.707-3.707a1 1 0 011.414 0z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 717 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414L2.586 7l3.707-3.707a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
               <span>{lagDays} day lag for eBay processing</span>
             </div>
@@ -196,10 +247,10 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
             </span>
             <button
               onClick={handleToggleAutoSync}
-              disabled={!setupStatus.readyToSync || saving}
+              disabled={!setupStatus?.readyToSync || saving}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
                 autoSyncEnabled ? 'bg-green-600' : 'bg-gray-200'
-              } ${!setupStatus.readyToSync ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${!setupStatus?.readyToSync ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <span
                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
@@ -221,7 +272,10 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
             {[1, 2, 3].map((days) => (
               <button
                 key={days}
-                onClick={() => updateLagDays(days)}
+                onClick={() => {
+                  console.log(`🎯 Day ${days} button clicked!`);
+                  updateLagDays(days);
+                }}
                 disabled={saving}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                   lagDays === days
@@ -242,7 +296,10 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
         <div className="bg-white border border-green-300 rounded-lg p-6">
           <div className="flex gap-3">
             <button
-              onClick={() => saveSettings()}
+              onClick={() => {
+                console.log('🎯 Save Settings button clicked!');
+                saveSettings();
+              }}
               disabled={saving}
               className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
             >
@@ -257,8 +314,11 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
             </button>
             
             <button
-              onClick={testAutoSync}
-              disabled={saving || !setupStatus.readyToSync}
+              onClick={() => {
+                console.log('🎯 Test Now button clicked!');
+                testAutoSync();
+              }}
+              disabled={saving || !setupStatus?.readyToSync}
               className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
             >
               {saving ? (
