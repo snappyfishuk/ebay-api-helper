@@ -3,6 +3,7 @@ export interface EbayConnectionInfo {
   isConnected: boolean;
   environment?: 'sandbox' | 'production';
   userId?: string;
+  username?: string; // Real eBay username from Commerce Identity API
   connectedAt?: Date;
   expiresAt?: Date;
 }
