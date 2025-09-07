@@ -1,6 +1,3 @@
-// AutoSyncTab.tsx - Debug version to identify the issue
-console.log('🚀 AutoSyncTab.tsx is loading!');
-
 import React, { useState, useEffect } from 'react';
 
 interface AutoSyncTabProps {
@@ -18,16 +15,12 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
   user,
   isLoading,
 }) => {
-  console.log('🔥 AutoSyncTab component rendering!');
-  console.log('🔥 Props:', { connections, setupStatus, user, isLoading });
-  
   const [saving, setSaving] = useState(false);
-  const [lagDays, setLagDays] = useState(2); // Default to 2 days
+  const [lagDays, setLagDays] = useState(2);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
 
-  // Load current settings
+  // Load current settings from user data
   useEffect(() => {
-    console.log('🔄 useEffect running, user data:', user?.autoSync);
     if (user?.autoSync) {
       setAutoSyncEnabled(user.autoSync.enabled || false);
       setLagDays(user.autoSync.lagDays || 2);
@@ -36,18 +29,9 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
 
   // Toggle auto-sync on/off
   const handleToggleAutoSync = async () => {
-    console.log('🎯 TOGGLE BUTTON CLICKED!', { 
-      current: autoSyncEnabled,
-      setupReady: setupStatus.readyToSync,
-      saving,
-      apiUrl: process.env.REACT_APP_API_URL 
-    });
-    
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      console.log('🔑 Token exists:', !!token);
-      
       const response = await fetch(
         `${process.env.REACT_APP_API_URL}/api/autosync/settings`,
         {
@@ -63,8 +47,6 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
           })
         }
       );
-      
-      console.log('📡 API Response:', response.status, response.ok);
       
       if (response.ok) {
         setAutoSyncEnabled(!autoSyncEnabled);
@@ -84,11 +66,9 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
 
   // Update lag days
   const updateLagDays = async (newLagDays: number) => {
-    console.log('🎯 LAG DAYS BUTTON CLICKED!', { newLagDays, current: lagDays });
-    
     setLagDays(newLagDays);
     
-    // Auto-save when lag days change
+    // Auto-save when auto-sync is enabled
     if (autoSyncEnabled) {
       await saveSettings(newLagDays);
     }
@@ -96,8 +76,6 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
 
   // Save settings function
   const saveSettings = async (customLagDays?: number) => {
-    console.log('🎯 SAVE SETTINGS CLICKED!', { customLagDays, lagDays, autoSyncEnabled });
-    
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
@@ -117,8 +95,6 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
         }
       );
       
-      console.log('📡 Save API Response:', response.status, response.ok);
-      
       if (response.ok) {
         alert('Settings saved successfully!');
       } else {
@@ -136,8 +112,6 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
 
   // Test sync function
   const testAutoSync = async () => {
-    console.log('🎯 TEST NOW BUTTON CLICKED!');
-    
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
@@ -152,8 +126,6 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
           credentials: 'include',
         }
       );
-      
-      console.log('📡 Test API Response:', response.status, response.ok);
       
       if (response.ok) {
         const result = await response.json();
@@ -171,176 +143,148 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     }
   };
 
-  // Add a simple test button first
-  const simpleTest = () => {
-    console.log('🎯 SIMPLE TEST BUTTON WORKS!');
-    alert('Simple button clicked!');
-  };
-
-  console.log('🎨 About to render component with state:', { saving, lagDays, autoSyncEnabled });
+  if (!setupStatus.readyToSync) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+        <div className="text-center">
+          <div className="text-2xl mb-2">⚠️</div>
+          <h4 className="text-lg font-semibold text-yellow-800 mb-2">Setup Required</h4>
+          <p className="text-yellow-700 text-sm mb-4">
+            Complete your eBay and FreeAgent connections to enable auto-sync.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      
-      {/* DEBUG SECTION - Remove after testing */}
-      <div className="bg-yellow-100 border border-yellow-400 rounded p-4">
-        <h4 className="font-bold text-yellow-800">🐛 Debug Info:</h4>
-        <p><strong>API URL:</strong> {process.env.REACT_APP_API_URL || 'NOT SET'}</p>
-        <p><strong>Token:</strong> {localStorage.getItem('token') ? 'Present' : 'Missing'}</p>
-        <p><strong>Setup Ready:</strong> {setupStatus?.readyToSync ? 'Yes' : 'No'}</p>
-        <p><strong>Auto-Sync Enabled:</strong> {autoSyncEnabled ? 'Yes' : 'No'}</p>
-        <p><strong>Lag Days:</strong> {lagDays}</p>
-        <button 
-          onClick={simpleTest}
-          className="mt-2 bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-        >
-          🧪 Simple Test Button
-        </button>
+      {/* Auto-Sync Status Card */}
+      <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h4 className="text-lg font-semibold text-green-800">Auto-Sync Settings</h4>
+            <p className="text-green-700 text-sm">Syncs daily at 2:00 AM UK time</p>
+          </div>
+          <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+            autoSyncEnabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+          }`}>
+            {autoSyncEnabled ? 'Active' : 'Inactive'}
+          </div>
+        </div>
+
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center text-green-700">
+            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+            </svg>
+            <span>Daily sync at 2:00 AM UK time</span>
+          </div>
+          <div className="flex items-center text-green-700">
+            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 717 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414L2.586 7l3.707-3.707a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+            <span>{lagDays} day lag for eBay processing</span>
+          </div>
+        </div>
       </div>
 
-      {/* Auto-Sync Configuration */}
-      <div className="bg-gradient-to-br from-green-50 to-blue-50 border-2 border-green-200 rounded-xl p-6">
-        <h3 className="text-lg font-bold text-green-800 mb-4">
-          Auto-Sync Configuration
-        </h3>
-        <p className="text-green-700 mb-4">
-          Automatically sync your eBay transactions to FreeAgent daily
+      {/* Fixed Schedule Info */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <h4 className="text-md font-semibold text-blue-800 mb-3">Fixed Schedule (Like FreeAgent Amazon)</h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <span className="text-blue-700 font-medium">Sync Time:</span>
+            <div className="text-blue-600">02:00 AM</div>
+          </div>
+          <div>
+            <span className="text-blue-700 font-medium">Frequency:</span>
+            <div className="text-blue-600">Daily</div>
+          </div>
+          <div>
+            <span className="text-blue-700 font-medium">Timezone:</span>
+            <div className="text-blue-600">UK Time</div>
+          </div>
+        </div>
+        <p className="text-blue-600 text-xs mt-2">
+          No time selection needed - automatically syncs at the optimal time for eBay transactions
         </p>
+      </div>
 
-        {/* Settings Status */}
-        <div className="bg-white border border-green-300 rounded-lg p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-bold text-green-900">Auto-Sync Settings</h4>
-            <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-              autoSyncEnabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-            }`}>
-              {autoSyncEnabled ? 'Active' : 'Inactive'}
-            </div>
+      {/* Auto-Sync Controls */}
+      <div className="bg-white border rounded-lg p-6">
+        <h4 className="text-md font-semibold text-gray-900 mb-4">Auto-Sync Control</h4>
+        
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <div className="font-medium text-gray-900">Enable Auto-Sync</div>
+            <div className="text-sm text-gray-600">Automatically sync eBay transactions daily at 2:00 AM UK time</div>
           </div>
-
-          <div className="space-y-3 text-sm mb-4">
-            <div className="flex items-center text-green-700">
-              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-              </svg>
-              <span>Daily sync at 2:00 AM UK time</span>
-            </div>
-            <div className="flex items-center text-green-700">
-              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 717 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414L2.586 7l3.707-3.707a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-              <span>{lagDays} day lag for eBay processing</span>
-            </div>
-          </div>
+          <button
+            onClick={handleToggleAutoSync}
+            disabled={saving}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+              autoSyncEnabled ? 'bg-green-600' : 'bg-gray-200'
+            } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                autoSyncEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
         </div>
 
-        {/* Auto-Sync Control */}
-        <div className="bg-white border border-green-300 rounded-lg p-6 mb-6">
-          <h4 className="text-lg font-bold text-green-900 mb-4">Enable Auto-Sync</h4>
-          <p className="text-gray-600 mb-4">
-            Automatically sync eBay transactions daily at 2:00 AM UK time
-          </p>
-          
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700">
-              {autoSyncEnabled ? 'Auto-sync is enabled' : 'Auto-sync is disabled'}
-            </span>
-            <button
-              onClick={handleToggleAutoSync}
-              disabled={!setupStatus?.readyToSync || saving}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
-                autoSyncEnabled ? 'bg-green-600' : 'bg-gray-200'
-              } ${!setupStatus?.readyToSync ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  autoSyncEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+        {/* Transaction Lag Options */}
+        <div className="mb-6">
+          <div className="font-medium text-gray-900 mb-2">Transaction Lag (Days)</div>
+          <div className="text-sm text-gray-600 mb-3">
+            Wait 1, 2 or 3 days before syncing transactions (reduced from Amazon's 3 days for faster eBay processing)
           </div>
-        </div>
-
-        {/* Transaction Lag Days */}
-        <div className="bg-white border border-green-300 rounded-lg p-6 mb-6">
-          <h4 className="text-lg font-bold text-green-900 mb-2">Transaction Lag (Days)</h4>
-          <p className="text-gray-600 text-sm mb-4">
-            Wait this many days before syncing transactions (reduced from Amazon's 3 days for faster eBay processing)
-          </p>
-          
-          <div className="flex gap-2 mb-4">
+          <div className="flex space-x-2">
             {[1, 2, 3].map((days) => (
               <button
                 key={days}
-                onClick={() => {
-                  console.log(`🎯 Day ${days} button clicked!`);
-                  updateLagDays(days);
-                }}
+                onClick={() => updateLagDays(days)}
                 disabled={saving}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`px-3 py-1 text-sm rounded font-medium transition-colors ${
                   lagDays === days
                     ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {days} day{days > 1 ? 's' : ''}
               </button>
             ))}
           </div>
-          <p className="text-xs text-gray-500">
-            Recommended: 2 days (balances accuracy with speed)
-          </p>
+          <p className="text-xs text-gray-500 mt-2">Recommended: 2 days (balances accuracy with speed)</p>
         </div>
 
         {/* Action Buttons */}
-        <div className="bg-white border border-green-300 rounded-lg p-6">
-          <div className="flex gap-3">
-            <button
-              onClick={() => {
-                console.log('🎯 Save Settings button clicked!');
-                saveSettings();
-              }}
-              disabled={saving}
-              className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
-            >
-              {saving ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Saving...
-                </>
-              ) : (
-                'Save Settings'
-              )}
-            </button>
-            
-            <button
-              onClick={() => {
-                console.log('🎯 Test Now button clicked!');
-                testAutoSync();
-              }}
-              disabled={saving || !setupStatus?.readyToSync}
-              className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
-            >
-              {saving ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Testing...
-                </>
-              ) : (
-                'Test Now'
-              )}
-            </button>
-          </div>
+        <div className="flex space-x-4">
+          <button
+            onClick={() => saveSettings()}
+            disabled={saving}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? 'Saving...' : 'Save Settings'}
+          </button>
+          <button
+            onClick={testAutoSync}
+            disabled={saving}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? 'Testing...' : 'Test Now'}
+          </button>
         </div>
       </div>
 
       {/* Sync Status */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Sync Status</h3>
-        
+      <div className="bg-white border rounded-lg p-6">
+        <h4 className="text-md font-semibold text-gray-900 mb-4">Sync Status</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h4 className="font-medium text-gray-700 mb-2">Schedule</h4>
+            <div className="text-sm font-medium text-gray-700 mb-2">Schedule</div>
             <div className="space-y-1 text-sm">
               <div>
                 <span className="text-gray-600">Next sync:</span>{' '}
@@ -362,7 +306,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
                   {user?.autoSync?.lastAutoSync ? (
                     new Date(user.autoSync.lastAutoSync).toLocaleString('en-GB', {
                       timeZone: 'Europe/London',
-                      dateStyle: 'medium', 
+                      dateStyle: 'medium',
                       timeStyle: 'short'
                     })
                   ) : (
@@ -370,11 +314,14 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
                   )}
                 </span>
               </div>
+              <div>
+                <span className="text-gray-600">Retry count:</span>{' '}
+                <span className="font-medium">{user?.autoSync?.retryCount || 0}/3</span>
+              </div>
             </div>
           </div>
-
           <div>
-            <h4 className="font-medium text-gray-700 mb-2">Statistics</h4>
+            <div className="text-sm font-medium text-gray-700 mb-2">Statistics</div>
             <div className="space-y-1 text-sm">
               <div>
                 <span className="text-gray-600">Total syncs:</span>{' '}
@@ -387,6 +334,10 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
               <div>
                 <span className="text-gray-600">Failed:</span>{' '}
                 <span className="font-medium text-red-600">{user?.autoSync?.stats?.failedAutoSyncs || 0}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Avg transactions:</span>{' '}
+                <span className="font-medium">{user?.autoSync?.stats?.averageTransactionsPerSync || 0}</span>
               </div>
             </div>
           </div>

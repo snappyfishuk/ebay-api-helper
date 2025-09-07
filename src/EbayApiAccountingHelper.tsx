@@ -11,6 +11,7 @@ import { SetupTab } from "./components/tabs/SetupTab";
 import { ImportTab } from "./components/tabs/ImportTab";
 import { TransactionsTab } from "./components/tabs/TransactionsTab";
 import { FreeAgentEntriesTab } from "./components/tabs/FreeAgentEntriesTab";
+import { AutoSyncTab } from "./components/tabs/AutoSyncTab";
 
 interface EbayApiAccountingHelperProps {
   user: User;
@@ -151,128 +152,13 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
               <p className="text-gray-600 text-sm">Automatically sync your eBay transactions to FreeAgent daily</p>
             </div>
             
-            {setupStatus.readyToSync ? (
-              <div className="space-y-6">
-                {/* Auto-Sync Status Card */}
-                <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="text-lg font-semibold text-green-800">Auto-Sync Settings</h4>
-                      <p className="text-green-700 text-sm">Syncs daily at 2:00 AM UK time</p>
-                    </div>
-                    <div className="bg-green-100 px-3 py-1 rounded-full text-sm font-medium text-green-800">
-                      Active
-                    </div>
-                  </div>
-                </div>
-
-                {/* Fixed Schedule Info */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                  <h4 className="text-md font-semibold text-blue-800 mb-3">Fixed Schedule (Like FreeAgent Amazon)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <span className="text-blue-700 font-medium">Sync Time:</span>
-                      <div className="text-blue-600">02:00 AM</div>
-                    </div>
-                    <div>
-                      <span className="text-blue-700 font-medium">Frequency:</span>
-                      <div className="text-blue-600">Daily</div>
-                    </div>
-                    <div>
-                      <span className="text-blue-700 font-medium">Timezone:</span>
-                      <div className="text-blue-600">UK Time</div>
-                    </div>
-                  </div>
-                  <p className="text-blue-600 text-xs mt-2">
-                    No time selection needed - automatically syncs at the optimal time for eBay transactions
-                  </p>
-                </div>
-
-                {/* Auto-Sync Controls */}
-                <div className="bg-white border rounded-lg p-6">
-                  <h4 className="text-md font-semibold text-gray-900 mb-4">Auto-Sync Control</h4>
-                  
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <div className="font-medium text-gray-900">Enable Auto-Sync</div>
-                      <div className="text-sm text-gray-600">Automatically sync eBay transactions daily at 2:00 AM UK time</div>
-                    </div>
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                        defaultChecked={true}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Transaction Lag Options */}
-                  <div className="mb-6">
-                    <div className="font-medium text-gray-900 mb-2">Transaction Lag (Days)</div>
-                    <div className="text-sm text-gray-600 mb-3">
-                      Wait 1, 2 or 3 days before before syncing transactions.
-                    </div>
-                    <div className="flex space-x-2">
-                      <button className="px-3 py-1 bg-blue-600 text-white text-sm rounded font-medium">
-                        1 day
-                      </button>
-                      <button className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded font-medium hover:bg-gray-300">
-                        2 days
-                      </button>
-                      <button className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded font-medium hover:bg-gray-300">
-                        3 days
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-2">Recommended: 2 days (balances accuracy with speed)</p>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex space-x-4">
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium">
-                      Save Settings
-                    </button>
-                    <button className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium">
-                      Test Now
-                    </button>
-                  </div>
-                </div>
-
-                {/* Sync Status */}
-                <div className="bg-white border rounded-lg p-6">
-                  <h4 className="text-md font-semibold text-gray-900 mb-4">Sync Status</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <div className="text-sm font-medium text-gray-700 mb-2">Schedule</div>
-                      <div className="text-sm text-gray-600">Next sync: 8 Sept 2025, 02:00</div>
-                      <div className="text-sm text-gray-600">Last sync: 7 Sept 2025, 13:00</div>
-                      <div className="text-sm text-gray-600">Retry count: 0/3</div>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-gray-700 mb-2">Statistics</div>
-                      <div className="text-sm text-gray-600">Total syncs: 13</div>
-                      <div className="text-sm text-gray-600">Successful: 12</div>
-                      <div className="text-sm text-red-600">Failed: 1</div>
-                      <div className="text-sm text-gray-600">Avg transactions: 10</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-                <div className="text-center">
-                  <div className="text-2xl mb-2">⚠️</div>
-                  <h4 className="text-lg font-semibold text-yellow-800 mb-2">Setup Required</h4>
-                  <p className="text-yellow-700 text-sm mb-4">Complete your account connections on the Dashboard to enable auto-sync.</p>
-                  
-                  <button 
-                    onClick={() => setActiveNav('dashboard')}
-                    className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
-                  >
-                    Go to Dashboard
-                  </button>
-                </div>
-              </div>
-            )}
+            <AutoSyncTab
+              connections={connections}
+              setupStatus={setupStatus}
+              ebayAccountStatus={freeagentConnection.ebayAccountStatus}
+              user={user}
+              isLoading={ebayConnection.isLoading || freeagentConnection.isLoading || transactionsManager.isLoading}
+            />
           </div>
         );
         
