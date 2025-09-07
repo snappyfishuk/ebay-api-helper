@@ -199,6 +199,8 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
           freeagentConnected={connections.freeagent.isConnected}
           ebayAccountReady={freeagentConnection.ebayAccountStatus.hasEbayAccount}
           bankAccountName={freeagentConnection.ebayAccountStatus.bankAccount?.name}
+          ebayUsername={ebayConnection.connection.userId}
+          userEmail={user.email}
         />
 
         <div className="mb-6">
