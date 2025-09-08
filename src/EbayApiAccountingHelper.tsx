@@ -472,13 +472,16 @@ case 'dashboard':
       
       {/* Action Button directly in card */}
       {(user?.freeagentConnection?.isConnected || connections.freeagent.isConnected) ? (
-        <button
-          onClick={freeagentConnection.disconnect}
-          disabled={freeagentConnection.isLoading}
-          className="w-full px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors disabled:opacity-50"
-        >
-          {freeagentConnection.isLoading ? 'Disconnecting...' : 'Disconnect'}
-        </button>
+        <div className="flex items-center space-x-2">
+          <span className="text-xs text-green-600 font-medium flex-1">Connected</span>
+          <button
+            onClick={freeagentConnection.disconnect}
+            disabled={freeagentConnection.isLoading}
+            className="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors disabled:opacity-50"
+          >
+            {freeagentConnection.isLoading ? 'Disconnecting...' : 'Disconnect'}
+          </button>
+        </div>
       ) : (
         <button
           onClick={freeagentConnection.connect}
