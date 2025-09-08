@@ -76,13 +76,13 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
         setDebugInfo("Login successful, calling AuthContext login...");
         
         // Check if we have the expected data structure
-        if (responseData.data && responseData.data.user && responseData.data.token) {
-          login(responseData.data.user, responseData.data.token);
+        if (responseData.data && responseData.data.user && responseData.token) {
+          login(responseData.data.user, responseData.token);
           setDebugInfo("AuthContext login called successfully");
           onLogin();
         } else {
           setError("Invalid response structure from server");
-          setDebugInfo(`Missing data: user=${!!responseData.data?.user}, token=${!!responseData.data?.token}`);
+          setDebugInfo(`Missing data: user=${!!responseData.data?.user}, token=${!!responseData.token}`);
         }
       } else {
         setError(responseData.message || "Login failed");
