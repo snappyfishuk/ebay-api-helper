@@ -94,7 +94,7 @@ export class FreeAgentApiService {
         credentials: "include",
         body: JSON.stringify({
           confirmCreate: "true",
-          accountName: "eBay UK seller Account", // Matches FreeAgent's Amazon pattern
+          accountName: "eBay UK seller Account",
         }),
       }
     );

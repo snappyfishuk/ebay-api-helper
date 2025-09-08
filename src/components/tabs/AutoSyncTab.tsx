@@ -251,7 +251,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
 
       {/* Fixed Schedule Info */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <h4 className="text-md font-semibold text-blue-800 mb-3">Fixed Schedule (Like FreeAgent Amazon)</h4>
+        <h4 className="text-md font-semibold text-blue-800 mb-3">Fixed Schedule</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div>
             <span className="text-blue-700 font-medium">Sync Time:</span>
@@ -299,7 +299,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
         <div className="mb-6">
           <div className="font-medium text-gray-900 mb-2">Transaction Lag (Days)</div>
           <div className="text-sm text-gray-600 mb-3">
-            Wait 1, 2 or 3 days before syncing transactions (reduced from Amazon's 3 days for faster eBay processing)
+            Wait 1, 2 or 3 days before syncing transactions.
           </div>
           <div className="flex space-x-2">
             {[1, 2, 3].map((days) => (

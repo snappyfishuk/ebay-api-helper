@@ -286,7 +286,6 @@ const StreamlinedFreeAgentSection: React.FC<{
                   account in FreeAgent for clean transaction organization.
                 </p>
                 <ul className="text-emerald-700 text-sm space-y-1">
-                  <li>• Follows FreeAgent's Amazon module pattern</li>
                   <li>
                     • Keeps eBay transactions separate from other business
                     accounts
@@ -353,8 +352,7 @@ const StreamlinedFreeAgentSection: React.FC<{
               Connect Your FreeAgent Account
             </h4>
             <p className="text-green-800 text-sm mb-4">
-              Safe setup that creates "eBay UK seller Account" following
-              FreeAgent's Amazon module pattern.
+              Safe setup that creates "eBay UK seller Account".
             </p>
             <ul className="text-green-700 text-sm space-y-1">
               <li>• Works with existing eBay accounts safely</li>
