@@ -9,9 +9,59 @@ import {
 import { makeAuthenticatedRequest } from '../utils/apiUtils';
 
 export class FreeAgentApiService {
-  uploadEbayStatement(syncData: { transactions: { dated_on: string; amount: number; description: string; reference: string; }[]; bankAccountId: string; }) {
-    throw new Error('Method not implemented.');
+  /**
+   * Upload eBay transactions as a bank statement to FreeAgent
+   * This is the correct method that matches the backend endpoint
+   */
+  async uploadEbayStatement(syncData: { 
+    transactions: { 
+      dated_on: string; 
+      amount: number; 
+      description: string; 
+      reference: string; 
+    }[]; 
+    bankAccountId: string; 
+  }): Promise<ApiResponse<{ uploadedCount: number }>> {
+    console.log("📤 Uploading eBay statement to FreeAgent...");
+    console.log("Upload data:", {
+      bankAccountId: syncData.bankAccountId,
+      transactionCount: syncData.transactions?.length || 0,
+    });
+
+    try {
+      const response = await makeAuthenticatedRequest('/freeagent/upload-ebay-statement', {
+        method: 'POST',
+        body: JSON.stringify(syncData)
+      });
+
+      console.log("✅ Statement upload response:", response);
+      
+      // Return the response with the expected structure
+      return {
+        status: response.status || 'success',
+        data: {
+          uploadedCount: response.data?.uploadedCount || syncData.transactions.length
+        }
+      };
+    } catch (error: any) {
+      console.error("❌ Statement upload failed:", error);
+      
+      let errorMessage = "Statement upload failed";
+      
+      if (error.message) {
+        if (error.message.includes("unauthorized") || error.message.includes("401")) {
+          errorMessage = "FreeAgent session expired. Please reconnect your FreeAgent account.";
+        } else if (error.message.includes("validation")) {
+          errorMessage = "Invalid transaction data. Please check your transactions and try again.";
+        } else {
+          errorMessage = error.message || "Unknown upload error occurred";
+        }
+      }
+
+      throw new Error(errorMessage);
+    }
   }
+
   /**
    * Check FreeAgent connection status
    */
@@ -76,7 +126,7 @@ export class FreeAgentApiService {
   }
 
   /**
-   * Sync transactions to FreeAgent
+   * Sync transactions to FreeAgent (older method - kept for compatibility)
    * CRITICAL: Handles transaction uploads with proper error handling
    */
   async syncTransactions(syncData: SyncData): Promise<ApiResponse<any>> {

@@ -1,5 +1,5 @@
 // hooks/useTransactions.ts
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   EbayTransaction,
   ProcessedTransactionData,
@@ -43,11 +43,13 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
     };
   });
 
-  // Memoized service instances to prevent recreation on every render
-  const ebayService = useMemo(() => new EbayApiService(), []);
-  const freeagentService = useMemo(() => new FreeAgentApiService(), []);
-  const transactionService = useMemo(() => new TransactionService(), []);
-  const validationService = useMemo(() => new ValidationService(), []);
+  // Use useMemo to create stable service instances
+  const services = useMemo(() => ({
+    ebayService: new EbayApiService(),
+    freeagentService: new FreeAgentApiService(),
+    transactionService: new TransactionService(),
+    validationService: new ValidationService(),
+  }), []); // Empty dependency array means these are created once
 
   const fetchTransactions = useCallback(async () => {
     if (!isEbayConnected) {
@@ -55,8 +57,8 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
       return;
     }
 
-    // FIX: This was the truncated line causing the error
-    const validation = validationService.validateDateRange(
+    // FIX: Complete the validation call with both parameters
+    const validation = services.validationService.validateDateRange(
       selectedDateRange.startDate,
       selectedDateRange.endDate
     );
@@ -70,14 +72,14 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
     setError(null);
 
     try {
-      const response = await ebayService.fetchTransactions(selectedDateRange);
+      const response = await services.ebayService.fetchTransactions(selectedDateRange);
       
       if (response.data) {
         const txns = response.data.transactions || [];
         setTransactions(txns);
         
         // Process transactions for FreeAgent
-        const processed = transactionService.processTransactionsForFreeAgent(txns);
+        const processed = services.transactionService.processTransactionsForFreeAgent(txns);
         setProcessedData(processed);
         
         setSyncStatus(
@@ -100,7 +102,7 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
     } finally {
       setIsLoading(false);
     }
-  }, [isEbayConnected, selectedDateRange, validationService, ebayService, transactionService]);
+  }, [isEbayConnected, selectedDateRange, services]);
 
   const syncToFreeAgent = useCallback(async (ebayAccountStatus: EbayAccountStatus) => {
     if (!processedData) {
@@ -138,9 +140,10 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
         bankAccountId: bankAccountId,
       };
 
-      const response = await freeagentService.uploadEbayStatement(syncData);
+      const response = await services.freeagentService.uploadEbayStatement(syncData);
       
-      const uploadedCount = response.data?.uploadedCount || processedData.freeAgentEntries.length;
+      // Fix: Safely access response properties
+      const uploadedCount = response?.data?.uploadedCount || processedData.freeAgentEntries.length;
 
       setSyncStatus(
         `Statement upload successful! ${uploadedCount} transactions uploaded to ${
@@ -157,23 +160,23 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
     } finally {
       setIsLoading(false);
     }
-  }, [processedData, freeagentService]);
+  }, [processedData, services]);
 
   const exportToCsv = useCallback(() => {
     if (processedData) {
-      transactionService.exportToCsv(processedData);
+      services.transactionService.exportToCsv(processedData);
     }
-  }, [processedData, transactionService]);
+  }, [processedData, services]);
 
   const setDatePreset = useCallback((days: number) => {
-    const newRange = validationService.createDatePreset(days);
+    const newRange = services.validationService.createDatePreset(days);
     setSelectedDateRange(newRange);
     setError(null);
-  }, [validationService]);
+  }, [services]);
 
   const handleStartDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newStartDate = e.target.value;
-    const validation = validationService.validateDateRange(
+    const validation = services.validationService.validateDateRange(
       newStartDate,
       selectedDateRange.endDate
     );
@@ -185,11 +188,11 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
 
     setError(null);
     setSelectedDateRange(prev => ({ ...prev, startDate: newStartDate }));
-  }, [selectedDateRange.endDate, validationService]);
+  }, [selectedDateRange.endDate, services]);
 
   const handleEndDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newEndDate = e.target.value;
-    const validation = validationService.validateDateRange(
+    const validation = services.validationService.validateDateRange(
       selectedDateRange.startDate,
       newEndDate
     );
@@ -201,7 +204,7 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
 
     setError(null);
     setSelectedDateRange(prev => ({ ...prev, endDate: newEndDate }));
-  }, [selectedDateRange.startDate, validationService]);
+  }, [selectedDateRange.startDate, services]);
 
   return {
     transactions,
@@ -217,4 +220,4 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
     handleStartDateChange,
     handleEndDateChange,
   };
-}; 
+};
