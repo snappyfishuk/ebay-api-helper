@@ -43,11 +43,11 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
     };
   });
 
-  // Simple service instances - TEMPORARY FIX for build issue
-  const ebayService = new EbayApiService();
-  const freeagentService = new FreeAgentApiService();
-  const transactionService = new TransactionService();
-  const validationService = new ValidationService();
+  // Memoized service instances to prevent recreation on every render
+  const ebayService = useMemo(() => new EbayApiService(), []);
+  const freeagentService = useMemo(() => new FreeAgentApiService(), []);
+  const transactionService = useMemo(() => new TransactionService(), []);
+  const validationService = useMemo(() => new ValidationService(), []);
 
   const fetchTransactions = useCallback(async () => {
     if (!isEbayConnected) {
