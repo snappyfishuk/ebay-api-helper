@@ -104,7 +104,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Manual Tools</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Manual Sync CSV</h3>
               <p className="text-gray-600 text-sm">Manual sync tools, troubleshooting, and CSV export</p>
             </div>
             
@@ -206,7 +206,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
             {[
               { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
               { id: 'autosync', label: 'Auto-Sync', icon: '⚡' },
-              { id: 'manual', label: 'Manual Tools', icon: '🔧' },
+              { id: 'manual', label: 'Manual-Sync', icon: '🔧' },
               { id: 'history', label: 'Transaction History', icon: '📊' },
               { id: 'settings', label: 'Settings', icon: '⚙️' },
             ].map((nav) => (
