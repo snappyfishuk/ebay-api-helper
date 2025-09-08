@@ -227,7 +227,7 @@ const StreamlinedFreeAgentSection: React.FC<{
                   </svg>
                   <span className="font-bold text-green-800">
                     {ebayAccountStatus.bankAccount?.name ||
-                      "eBay UK seller Account"}{" "}
+                      "eBay UK seller"}{" "}
                     account ready
                   </span>
                 </div>
