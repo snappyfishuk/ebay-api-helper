@@ -9,6 +9,9 @@ import {
 import { makeAuthenticatedRequest } from '../utils/apiUtils';
 
 export class FreeAgentApiService {
+  uploadEbayStatement(syncData: { transactions: { dated_on: string; amount: number; description: string; reference: string; }[]; bankAccountId: string; }) {
+    throw new Error('Method not implemented.');
+  }
   /**
    * Check FreeAgent connection status
    */
