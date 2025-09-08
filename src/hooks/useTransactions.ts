@@ -8,8 +8,8 @@ import {
 } from '../types';
 import { EbayApiService } from '../services/EbayApiService';
 import { FreeAgentApiService } from '../services/FreeAgentApiService';
-import { TransactionService, ValidationService } from '../services';
-
+import { TransactionService } from '../services/TransactionService';
+import { ValidationService } from '../services/ValidationService';
 interface UseTransactionsReturn {
   transactions: EbayTransaction[];
   processedData: ProcessedTransactionData | null;
