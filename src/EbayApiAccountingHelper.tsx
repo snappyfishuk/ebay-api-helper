@@ -14,12 +14,13 @@ import { AutoSyncTab } from "./components/tabs/AutoSyncTab";
 import { ImportTab } from "./components/tabs/ImportTab";
 import { TransactionsTab } from "./components/tabs/TransactionsTab";
 import { FreeAgentEntriesTab } from "./components/tabs/FreeAgentEntriesTab";
+import { SettingsTab } from "./components/tabs/SettingsTab";
 
 interface EbayApiAccountingHelperProps {
   user: User;
 }
 
-type NavigationId = 'dashboard' | 'autosync' | 'manual' | 'history';
+type NavigationId = 'dashboard' | 'autosync' | 'manual' | 'history' | 'settings';
 
 const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user }) => {
   const [activeNav, setActiveNav] = useState<NavigationId>("dashboard");
@@ -154,6 +155,9 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
             </div>
           </div>
         );
+
+      case 'settings':
+        return <SettingsTab user={user} />;
         
       default:
         return null;
@@ -204,6 +208,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
               { id: 'autosync', label: 'Auto-Sync', icon: '⚡' },
               { id: 'manual', label: 'Manual Tools', icon: '🔧' },
               { id: 'history', label: 'Transaction History', icon: '📊' },
+              { id: 'settings', label: 'Settings', icon: '⚙️' },
             ].map((nav) => (
               <button
                 key={nav.id}

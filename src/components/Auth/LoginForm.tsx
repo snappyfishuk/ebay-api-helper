@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
+import TwoFactorVerification from "../TwoFactorVerification";
 
 interface LoginFormProps {
   onLogin: () => void;
@@ -19,17 +20,26 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
   });
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
-  const [debugInfo, setDebugInfo] = useState<string>("");
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState<boolean>(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    await attemptLogin();
+  };
+
+  const attemptLogin = async (twoFactorToken?: string, isBackupCode?: boolean) => {
     setLoading(true);
     setError("");
-    setDebugInfo("Starting login...");
 
     try {
-      setDebugInfo("Making API request...");
-      
+      const requestBody = {
+        ...formData,
+        ...(twoFactorToken && { 
+          twoFactorToken, 
+          isBackupCode: isBackupCode || false 
+        }),
+      };
+
       const response = await fetch(
         `${process.env.REACT_APP_API_URL}/api/auth/login`,
         {
@@ -37,64 +47,59 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(requestBody),
           credentials: "include",
         }
       );
 
-      setDebugInfo(`Response status: ${response.status}, OK: ${response.ok}`);
-
-      // Handle rate limiting specifically
       if (response.status === 429) {
         setError('Too many requests. Please wait 15 minutes and try again.');
         setLoading(false);
         return;
       }
 
-      // Handle other non-OK responses
       if (!response.ok) {
         let errorMessage = 'Login failed';
         try {
           const errorData = await response.json();
           errorMessage = errorData.message || errorMessage;
-          setDebugInfo(`Error data: ${JSON.stringify(errorData)}`);
         } catch {
           const errorText = await response.text();
           errorMessage = errorText || errorMessage;
-          setDebugInfo(`Error text: ${errorText}`);
         }
         setError(errorMessage);
         setLoading(false);
         return;
       }
 
-      // Success case
       const responseData = await response.json();
-      setDebugInfo(`Response data: ${JSON.stringify(responseData)}`);
+      
+      if (responseData.status === "2fa_required") {
+        setRequiresTwoFactor(true);
+        setLoading(false);
+        return;
+      }
       
       if (responseData.status === "success") {
-        setDebugInfo("Login successful, calling AuthContext login...");
-        
-        // Check if we have the expected data structure
         if (responseData.data && responseData.data.user && responseData.token) {
           login(responseData.data.user, responseData.token);
-          setDebugInfo("AuthContext login called successfully");
           onLogin();
         } else {
           setError("Invalid response structure from server");
-          setDebugInfo(`Missing data: user=${!!responseData.data?.user}, token=${!!responseData.token}`);
         }
       } else {
         setError(responseData.message || "Login failed");
-        setDebugInfo(`Login failed: ${responseData.message}`);
       }
     } catch (error) {
       console.error("Login error:", error);
       setError("Network error - please check your connection and try again");
-      setDebugInfo(`Network error: ${error}`);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleTwoFactorVerified = (token: string, isBackupCode: boolean) => {
+    attemptLogin(token, isBackupCode);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -103,6 +108,20 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
       [e.target.name]: e.target.value,
     });
   };
+
+  if (requiresTwoFactor) {
+    return (
+      <TwoFactorVerification
+        onVerified={handleTwoFactorVerified}
+        onCancel={() => {
+          setRequiresTwoFactor(false);
+          setError('');
+        }}
+        loading={loading}
+        error={error}
+      />
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto">
@@ -113,30 +132,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
             Sign in to your eBay Helper account
           </p>
         </div>
-
-        {/* Debug Info */}
-        {debugInfo && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-            <p className="text-xs text-blue-800">Debug: {debugInfo}</p>
-          </div>
-        )}
-
-        {/* Rate limit warning banner */}
-        {error && error.includes('Too many requests') && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              <div>
-                <h4 className="text-yellow-800 font-medium">Rate Limited</h4>
-                <p className="text-yellow-700 text-sm">
-                  Too many requests detected. Please wait 15 minutes before trying to log in again.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -171,10 +166,25 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
             />
           </div>
 
-          {/* General error display (non-rate-limit errors) */}
           {error && !error.includes('Too many requests') && (
             <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm">
               {error}
+            </div>
+          )}
+
+          {error && error.includes('Too many requests') && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <h4 className="text-yellow-800 font-medium">Rate Limited</h4>
+                  <p className="text-yellow-700 text-sm">
+                    Too many requests detected. Please wait 15 minutes before trying to log in again.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -194,11 +204,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
           >
             Don't have an account? Sign up
           </button>
-        </div>
-
-        {/* Debug panel */}
-        <div className="mt-4 text-xs text-gray-500">
-          API URL: {process.env.REACT_APP_API_URL}
         </div>
       </div>
     </div>
