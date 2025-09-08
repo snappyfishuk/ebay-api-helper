@@ -43,9 +43,9 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
     };
   });
 
-  // Simple service instances - no fancy optimization needed
-  const ebayService = new EbayApiService(process.env.REACT_APP_API_URL || '');
-  const freeagentService = new FreeAgentApiService(process.env.REACT_APP_API_URL || '');
+  // Simple service instances - TEMPORARY FIX for build issue
+  const ebayService = new EbayApiService();
+  const freeagentService = new FreeAgentApiService();
   const transactionService = new TransactionService();
   const validationService = new ValidationService();
 
