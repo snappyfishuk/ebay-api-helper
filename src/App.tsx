@@ -11,9 +11,6 @@ import EbayApiAccountingHelper from "./EbayApiAccountingHelper";
 // Auth Context
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
-// Import your existing User type
-import { User } from "./types/user.types";
-
 // Main App Content Component (uses AuthContext)
 const AppContent: React.FC = () => {
   const { user, loading, logout, isAuthenticated } = useAuth();
