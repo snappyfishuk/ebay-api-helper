@@ -1,11 +1,10 @@
 // EbayApiAccountingHelper.tsx - Clean & Modular
 import React, { useState, useEffect } from "react";
-import { 
-  useEbayConnection, 
-  useFreeAgentConnection, 
-  useTransactions, 
-  useSetupStatus 
-} from "./hooks";
+// NEW (works without index.ts):
+import { useEbayConnection } from "./hooks/useEbayConnection";
+import { useFreeAgentConnection } from "./hooks/useFreeAgentConnection";
+import { useTransactions } from "./hooks/useTransactions";
+import { useSetupStatus } from "./hooks/useSetupStatus";
 import { User, Connections } from "./types";
 import { ConnectionStatusCards } from "./components/ConnectionStatusCards";
 import { TrialAlert } from "./components/TrialAlert";
