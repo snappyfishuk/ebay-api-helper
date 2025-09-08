@@ -7,10 +7,8 @@ interface DashboardTabProps {
   connections: any;
   freeagentConnection: any;
   ebayConnection: any;
-  setActiveNav: (nav: NavigationId) => void;
+  setActiveNav: (nav: string) => void;
 }
-
-type NavigationId = 'dashboard' | 'autosync' | 'manual' | 'history';
 
 export const DashboardTab: React.FC<DashboardTabProps> = ({
   setupStatus,
