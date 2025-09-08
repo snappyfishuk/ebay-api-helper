@@ -423,38 +423,41 @@ case 'dashboard':
   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
     
     {/* eBay Status - Enhanced with Action Button */}
-    <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-lg p-4">
-      <div className={`w-4 h-4 rounded-full mx-auto mb-2 ${(user?.ebayConnection?.isConnected || connections.ebay.isConnected) ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
-      <div className="text-sm font-bold text-blue-900 mb-1">eBay Username</div>
-      <div className="text-xs text-blue-800 truncate font-medium mb-3" title={
-        (user?.ebayConnection?.isConnected || connections.ebay.isConnected) 
-          ? (user?.ebayConnection?.username || `Connected (${user?.ebayConnection?.environment || 'production'})`)
-          : 'Not connected'
-      }>
-        {(user?.ebayConnection?.isConnected || connections.ebay.isConnected) 
-          ? (user?.ebayConnection?.username || 'Connected')
-          : 'Not connected'}
-      </div>
-      
-      {/* Action Button directly in card */}
-      {(user?.ebayConnection?.isConnected || connections.ebay.isConnected) ? (
-        <button
-          onClick={ebayConnection.disconnect}
-          disabled={ebayConnection.isLoading}
-          className="w-full px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors disabled:opacity-50"
-        >
-          {ebayConnection.isLoading ? 'Disconnecting...' : 'Disconnect'}
-        </button>
-      ) : (
-        <button
-          onClick={ebayConnection.connect}
-          disabled={ebayConnection.isLoading}
-          className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
-        >
-          {ebayConnection.isLoading ? 'Connecting...' : 'Connect eBay'}
-        </button>
-      )}
+<div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-lg p-4">
+  <div className={`w-4 h-4 rounded-full mx-auto mb-2 ${(user?.ebayConnection?.isConnected || connections.ebay.isConnected) ? 'bg-green-600' : 'bg-gray-300'}`}></div>
+  <div className="text-sm font-bold text-blue-900 mb-1">eBay Username</div>
+  <div className="text-xs text-blue-800 truncate font-medium mb-3" title={
+    (user?.ebayConnection?.isConnected || connections.ebay.isConnected) 
+      ? (user?.ebayConnection?.username || `Connected (${user?.ebayConnection?.environment || 'production'})`)
+      : 'Not connected'
+  }>
+    {(user?.ebayConnection?.isConnected || connections.ebay.isConnected) 
+      ? (user?.ebayConnection?.username || 'Connected')
+      : 'Not connected'}
+  </div>
+  
+  {/* Action Button directly in card */}
+  {(user?.ebayConnection?.isConnected || connections.ebay.isConnected) ? (
+    <div className="flex items-center space-x-2">
+      <span className="text-xs text-green-600 font-medium flex-1">Connected</span>
+      <button
+        onClick={ebayConnection.disconnect}
+        disabled={ebayConnection.isLoading}
+        className="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 transition-colors disabled:opacity-50"
+      >
+        {ebayConnection.isLoading ? 'Disconnecting...' : 'Disconnect'}
+      </button>
     </div>
+  ) : (
+    <button
+      onClick={ebayConnection.connect}
+      disabled={ebayConnection.isLoading}
+      className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+    >
+      {ebayConnection.isLoading ? 'Connecting...' : 'Connect eBay'}
+    </button>
+  )}
+</div>
     
     {/* FreeAgent Status - Enhanced with Action Button */}
     <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 rounded-lg p-4">
