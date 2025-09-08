@@ -5,38 +5,21 @@ import {
   EbayConnection,
   DateRange 
 } from '../types';
-import { getAuthHeaders } from '../utils/formatters';
+import { makeAuthenticatedRequest } from '../utils/apiUtils';
 
 export class EbayApiService {
-  private apiUrl: string;
-
-  constructor(apiUrl: string) {
-    this.apiUrl = apiUrl;
-  }
-
   /**
    * Check eBay connection status
    * IMPORTANT: Returns both connection status and environment
    */
   async checkConnectionStatus(): Promise<EbayConnection> {
     try {
-      const response = await fetch(
-        `${this.apiUrl}/api/ebay/connection-status`,
-        {
-          headers: getAuthHeaders(),
-          credentials: "include",
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        return {
-          isConnected: data.data?.isConnected || data.isConnected || false,
-          environment: data.data?.environment || data.environment || "production",
-        };
-      }
-
-      return { isConnected: false, environment: "production" };
+      const data = await makeAuthenticatedRequest('/ebay/connection-status');
+      
+      return {
+        isConnected: data.data?.isConnected || data.isConnected || false,
+        environment: data.data?.environment || data.environment || "production",
+      };
     } catch (error) {
       console.error("Error checking eBay connection status:", error);
       return { isConnected: false, environment: "production" };
@@ -48,17 +31,9 @@ export class EbayApiService {
    * CRITICAL: Always uses production environment as per requirements
    */
   async getAuthUrl(): Promise<ApiResponse<{ authUrl: string }>> {
-    const response = await fetch(
-      `${this.apiUrl}/api/ebay/auth-url?environment=production`,
-      {
-        headers: getAuthHeaders(),
-        credentials: "include",
-      }
-    );
-
-    const data = await response.json();
+    const data = await makeAuthenticatedRequest('/ebay/auth-url?environment=production');
     
-    if (!response.ok) {
+    if (data.status !== 'success') {
       throw new Error(data.message || "Failed to connect to eBay");
     }
     
@@ -76,17 +51,11 @@ export class EbayApiService {
       `Fetching transactions from ${dateRange.startDate} to ${dateRange.endDate}`
     );
 
-    const response = await fetch(
-      `${this.apiUrl}/api/ebay/transactions?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`,
-      {
-        headers: getAuthHeaders(),
-        credentials: "include",
-      }
+    const data = await makeAuthenticatedRequest(
+      `/ebay/transactions?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`
     );
 
-    const data = await response.json();
-
-    if (!response.ok) {
+    if (data.status !== 'success') {
       throw new Error(data.message || "Failed to fetch transactions");
     }
 
@@ -97,16 +66,11 @@ export class EbayApiService {
    * Disconnect from eBay
    */
   async disconnect(): Promise<void> {
-    const response = await fetch(
-      `${this.apiUrl}/api/ebay/disconnect`,
-      {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-        credentials: "include",
-      }
-    );
+    const data = await makeAuthenticatedRequest('/ebay/disconnect', {
+      method: 'DELETE'
+    });
 
-    if (!response.ok) {
+    if (data.status !== 'success') {
       throw new Error("Failed to disconnect from eBay");
     }
   }

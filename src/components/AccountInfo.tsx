@@ -1,5 +1,6 @@
-// components/AccountInfo.tsx - Updated with Trial Status
+// components/AccountInfo.tsx - Updated with API Utils
 import React, { useState, useEffect } from "react";
+import { makeAuthenticatedRequest } from "../utils/apiUtils";
 
 interface User {
   firstName: string;
@@ -39,39 +40,20 @@ const AccountInfo: React.FC = () => {
     fetchData();
   }, []);
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("token");
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
-
   const fetchData = async () => {
     try {
       // Get user info
-      const userRes = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/auth/me`,
-        {
-          headers: getAuthHeaders(),
-          credentials: "include",
-        }
-      );
-      if (userRes.ok) {
-        const userData = await userRes.json();
+      try {
+        const userData = await makeAuthenticatedRequest('/auth/me');
         setUser(userData.data?.user || userData.user);
+      } catch (e) {
+        console.log("User info fetch failed:", e);
       }
 
       // Get trial/subscription info
       try {
-        const trialRes = await fetch(
-          `${process.env.REACT_APP_API_URL}/api/users/subscription`,
-          {
-            headers: getAuthHeaders(),
-            credentials: "include",
-          }
-        );
-        if (trialRes.ok) {
-          const trialResponse = await trialRes.json();
-          setTrialData(trialResponse.data);
-        }
+        const trialResponse = await makeAuthenticatedRequest('/users/subscription');
+        setTrialData(trialResponse.data);
       } catch (e) {
         console.log("Trial info fetch failed:", e);
       }
@@ -79,97 +61,50 @@ const AccountInfo: React.FC = () => {
       // Get eBay info - try account-info first, fallback to connection-status
       let ebaySuccess = false;
       try {
-        const ebayRes = await fetch(
-          `${process.env.REACT_APP_API_URL}/api/ebay/account-info`,
-          {
-            headers: getAuthHeaders(),
-            credentials: "include",
-          }
-        );
-        if (ebayRes.ok) {
-          const ebayData = await ebayRes.json();
-          setEbay(ebayData.data?.ebay);
-          ebaySuccess = true;
-        }
+        const ebayData = await makeAuthenticatedRequest('/ebay/account-info');
+        setEbay(ebayData.data?.ebay);
+        ebaySuccess = true;
       } catch (e) {
-        // Network error
+        // Try fallback
       }
 
       if (!ebaySuccess) {
         try {
-          const ebayRes = await fetch(
-            `${process.env.REACT_APP_API_URL}/api/ebay/connection-status`,
-            {
-              headers: getAuthHeaders(),
-              credentials: "include",
-            }
-          );
-          if (ebayRes.ok) {
-            const ebayData = await ebayRes.json();
-            if (ebayData.data?.isConnected || ebayData.isConnected) {
-              setEbay({
-                userId: ebayData.data?.userId || ebayData.userId,
-                environment: ebayData.data?.environment || ebayData.environment,
-                connectedAt: ebayData.data?.connectedAt || ebayData.connectedAt,
-              });
-            }
+          const ebayData = await makeAuthenticatedRequest('/ebay/connection-status');
+          if (ebayData.data?.isConnected || ebayData.isConnected) {
+            setEbay({
+              userId: ebayData.data?.userId || "Connected",
+              username: ebayData.data?.username || "eBay User",
+              environment: ebayData.data?.environment || "production",
+              connectedAt: ebayData.data?.connectedAt,
+            });
           }
         } catch (e) {
-          console.log("eBay connection-status failed:", e);
+          console.log("eBay connection status fetch failed:", e);
         }
       }
 
-      // Get FreeAgent info - try account-info first, fallback to connection-status
-      let freeagentSuccess = false;
+      // Get FreeAgent info
       try {
-        const faRes = await fetch(
-          `${process.env.REACT_APP_API_URL}/api/freeagent/account-info`,
-          {
-            headers: getAuthHeaders(),
-            credentials: "include",
-          }
-        );
-        if (faRes.ok) {
-          const faData = await faRes.json();
-          setFreeagent(faData.data?.freeagent);
-          freeagentSuccess = true;
+        const freeagentData = await makeAuthenticatedRequest('/freeagent/connection-status');
+        if (freeagentData.data?.isConnected || freeagentData.isConnected) {
+          setFreeagent({
+            companyId: freeagentData.data?.companyId || "Connected",
+            environment: "production",
+            connectedAt: freeagentData.data?.connectedAt,
+          });
         }
       } catch (e) {
-        console.log("FreeAgent account-info failed, trying fallback...");
-      }
-
-      // Always try fallback if account-info didn't work
-      if (!freeagentSuccess) {
-        try {
-          const faRes = await fetch(
-            `${process.env.REACT_APP_API_URL}/api/freeagent/connection-status`,
-            {
-              headers: getAuthHeaders(),
-              credentials: "include",
-            }
-          );
-          if (faRes.ok) {
-            const faData = await faRes.json();
-            if (faData.data?.isConnected || faData.isConnected) {
-              setFreeagent({
-                companyId: faData.data?.companyId || faData.companyId,
-                connectedAt: faData.data?.connectedAt || faData.connectedAt,
-                environment: "production",
-              });
-            }
-          }
-        } catch (e) {
-          console.log("FreeAgent connection-status also failed:", e);
-        }
+        console.log("FreeAgent connection status fetch failed:", e);
       }
     } catch (error) {
-      console.error("Error fetching account data:", error);
+      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Helper functions for trial status
+  // Helper function to format trial status text and colors
   const formatTimeRemaining = (daysRemaining: number) => {
     if (daysRemaining <= 0) return "Trial expired";
     if (daysRemaining === 1) return "1 day left";
@@ -233,62 +168,40 @@ const AccountInfo: React.FC = () => {
             }`}>
               {trialData.isTrialActive && trialData.daysRemaining
                 ? formatTimeRemaining(trialData.daysRemaining)
-                : 'Expired'}
+                : "Expired"}
             </span>
           </div>
         )}
 
-        {/* eBay Status - eBay Colors */}
+        {/* eBay Connection Status */}
         <div className="flex items-center space-x-2">
-          <div
-            className={`w-2 h-2 rounded-full ${
-              isEbayConnected ? "bg-red-500" : "bg-gray-300"
-            }`}
-          ></div>
+          <div className={`w-2 h-2 rounded-full ${
+            isEbayConnected ? 'bg-green-500' : 'bg-red-500'
+          }`}></div>
           <span className="text-sm font-medium text-gray-700">eBay:</span>
-          {isEbayConnected ? (
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-red-600">
-                {ebay.username || "Connected"}
-              </span>
-              <span className="px-2 py-1 bg-red-50 text-red-700 text-xs rounded-full">
-                {ebay.environment}
-              </span>
-            </div>
-          ) : (
-            <span className="text-sm text-gray-500">Not Connected</span>
-          )}
+          <span className={`px-2 py-1 text-xs rounded font-medium ${
+            isEbayConnected 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-red-100 text-red-800'
+          }`}>
+            {isEbayConnected 
+              ? `Connected${ebay?.username ? ` (${ebay.username})` : ''}` 
+              : 'Not Connected'}
+          </span>
         </div>
 
-        {/* FreeAgent Status - FreeAgent Green */}
+        {/* FreeAgent Connection Status */}
         <div className="flex items-center space-x-2">
-          <div
-            className={`w-2 h-2 rounded-full ${
-              isFreeagentConnected ? "bg-green-600" : "bg-gray-300"
-            }`}
-          ></div>
+          <div className={`w-2 h-2 rounded-full ${
+            isFreeagentConnected ? 'bg-green-500' : 'bg-red-500'
+          }`}></div>
           <span className="text-sm font-medium text-gray-700">FreeAgent:</span>
-          {isFreeagentConnected ? (
-            <span className="text-sm font-medium text-green-600">
-              Connected
-            </span>
-          ) : (
-            <span className="text-sm text-gray-500">Not Connected</span>
-          )}
-        </div>
-
-        {/* Sync Status - Compact */}
-        <div className="ml-auto">
-          <span
-            className={`px-3 py-1 rounded-full text-xs font-medium ${
-              isEbayConnected && isFreeagentConnected
-                ? "bg-green-50 text-green-700 border border-green-200"
-                : "bg-yellow-50 text-yellow-700 border border-yellow-200"
-            }`}
-          >
-            {isEbayConnected && isFreeagentConnected
-              ? "Ready to Sync"
-              : "Setup Required"}
+          <span className={`px-2 py-1 text-xs rounded font-medium ${
+            isFreeagentConnected 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-red-100 text-red-800'
+          }`}>
+            {isFreeagentConnected ? 'Connected' : 'Not Connected'}
           </span>
         </div>
       </div>

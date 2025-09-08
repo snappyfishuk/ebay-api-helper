@@ -6,36 +6,19 @@ import {
   FreeAgentBankAccount,
   SyncData 
 } from '../types';
-import { getAuthHeaders } from '../utils/formatters';
+import { makeAuthenticatedRequest } from '../utils/apiUtils';
 
 export class FreeAgentApiService {
-  private apiUrl: string;
-
-  constructor(apiUrl: string) {
-    this.apiUrl = apiUrl;
-  }
-
   /**
    * Check FreeAgent connection status
    */
   async checkConnectionStatus(): Promise<FreeAgentConnection> {
     try {
-      const response = await fetch(
-        `${this.apiUrl}/api/freeagent/connection-status`,
-        {
-          headers: getAuthHeaders(),
-          credentials: "include",
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        return {
-          isConnected: data.data?.isConnected || data.isConnected || false,
-        };
-      }
-
-      return { isConnected: false };
+      const data = await makeAuthenticatedRequest('/freeagent/connection-status');
+      
+      return {
+        isConnected: data.data?.isConnected || data.isConnected || false,
+      };
     } catch (error) {
       console.error("Error checking FreeAgent connection status:", error);
       return { isConnected: false };
@@ -51,23 +34,8 @@ export class FreeAgentApiService {
   }> {
     console.log("🔍 Checking eBay account status...");
 
-    const response = await fetch(
-      `${this.apiUrl}/api/freeagent/ebay-account-status`,
-      {
-        headers: getAuthHeaders(),
-        credentials: "include",
-      }
-    );
-
-    console.log("📡 Response status:", response.status);
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.log("❌ Response not OK:", response.status, errorData);
-      throw new Error("Failed to check eBay account status");
-    }
-
-    const data = await response.json();
+    const data = await makeAuthenticatedRequest('/freeagent/ebay-account-status');
+    
     console.log("📦 Full response data:", data);
 
     if (data.data) {
@@ -84,111 +52,70 @@ export class FreeAgentApiService {
    */
   async createEbayAccount(): Promise<ApiResponse<{
     created: boolean;
-    bankAccount: FreeAgentBankAccount;
+    account?: FreeAgentBankAccount;
   }>> {
-    const response = await fetch(
-      `${this.apiUrl}/api/freeagent/create-ebay-account`,
-      {
-        method: "POST",
-        headers: getAuthHeaders(),
-        credentials: "include",
-        body: JSON.stringify({
-          confirmCreate: "true",
-          accountName: "eBay UK seller Account",
-        }),
-      }
-    );
+    console.log("🏦 Creating new eBay account in FreeAgent...");
 
-    const data = await response.json();
+    const data = await makeAuthenticatedRequest('/freeagent/create-ebay-account', {
+      method: 'POST'
+    });
 
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to set up eBay account");
-    }
-
+    console.log("📦 Create eBay account response:", data);
     return data;
   }
 
   /**
-   * Select existing eBay account
-   * CRITICAL: Used when multiple eBay accounts exist
+   * Get available bank accounts from FreeAgent
    */
-  async selectExistingEbayAccount(
-    accountUrl: string
-  ): Promise<ApiResponse<{ bankAccount: FreeAgentBankAccount }>> {
-    const response = await fetch(
-      `${this.apiUrl}/api/freeagent/select-ebay-account`,
-      {
-        method: "POST",
-        headers: getAuthHeaders(),
-        credentials: "include",
-        body: JSON.stringify({ accountUrl }),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to select eBay account");
-    }
-
+  async getBankAccounts(): Promise<ApiResponse<{ bankAccounts: FreeAgentBankAccount[] }>> {
+    const data = await makeAuthenticatedRequest('/freeagent/bank-accounts');
     return data;
   }
 
   /**
-   * Upload eBay transactions as bank statement
-   * CRITICAL: Uses FreeAgent's statement import method for clean organization
+   * Sync transactions to FreeAgent
+   * CRITICAL: Handles transaction uploads with proper error handling
    */
-  async uploadEbayStatement(
-    syncData: SyncData
-  ): Promise<ApiResponse<{ uploadedCount: number }>> {
-    console.log("Syncing with statement upload method:", syncData);
+  async syncTransactions(syncData: SyncData): Promise<ApiResponse<any>> {
+    console.log("🔄 Syncing transactions to FreeAgent...");
+    console.log("Sync data:", {
+      bankAccountId: syncData.bankAccountId,
+      transactionCount: syncData.transactions?.length || 0,
+    });
 
-    const response = await fetch(
-      `${this.apiUrl}/api/freeagent/upload-ebay-statement`,
-      {
-        method: "POST",
-        headers: getAuthHeaders(),
-        credentials: "include",
-        body: JSON.stringify(syncData),
-      }
-    );
+    try {
+      const data = await makeAuthenticatedRequest('/freeagent/bank-transactions', {
+        method: 'POST',
+        body: JSON.stringify(syncData)
+      });
 
-    const data = await response.json();
-
-    if (!response.ok) {
+      return data;
+    } catch (error: any) {
+      console.error("❌ Sync failed:", error);
+      
       let errorMessage = "Sync failed";
-
-      if (data.status === "error") {
-        if (data.message?.includes("authentication")) {
-          errorMessage = "FreeAgent authentication failed. Please reconnect your FreeAgent account.";
-        } else if (data.message?.includes("validation")) {
+      
+      if (error.message) {
+        if (error.message.includes("unauthorized") || error.message.includes("401")) {
+          errorMessage = "FreeAgent session expired. Please reconnect your FreeAgent account.";
+        } else if (error.message.includes("validation")) {
           errorMessage = "Invalid transaction data. Please check your transactions and try again.";
         } else {
-          errorMessage = data.message || "Unknown sync error occurred";
+          errorMessage = error.message || "Unknown sync error occurred";
         }
       }
 
       throw new Error(errorMessage);
     }
-
-    return data;
   }
 
   /**
    * Get FreeAgent OAuth URL
    */
   async getAuthUrl(): Promise<ApiResponse<{ authUrl: string }>> {
-    const response = await fetch(
-      `${this.apiUrl}/api/freeagent/auth-url`,
-      {
-        headers: getAuthHeaders(),
-        credentials: "include",
-      }
-    );
+    const data = await makeAuthenticatedRequest('/freeagent/auth-url');
 
-    const data = await response.json();
-
-    if (!response.ok) {
+    if (data.status !== 'success') {
       throw new Error(data.message || "Failed to connect to FreeAgent");
     }
 
@@ -199,16 +126,11 @@ export class FreeAgentApiService {
    * Disconnect from FreeAgent
    */
   async disconnect(): Promise<void> {
-    const response = await fetch(
-      `${this.apiUrl}/api/freeagent/disconnect`,
-      {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-        credentials: "include",
-      }
-    );
+    const data = await makeAuthenticatedRequest('/freeagent/disconnect', {
+      method: 'DELETE'
+    });
 
-    if (!response.ok) {
+    if (data.status !== 'success') {
       throw new Error("Failed to disconnect from FreeAgent");
     }
   }

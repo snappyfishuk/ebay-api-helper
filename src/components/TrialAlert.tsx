@@ -1,5 +1,6 @@
 // components/TrialAlert.tsx
 import React, { useState, useEffect } from 'react';
+import { makeAuthenticatedRequest } from '../utils/apiUtils';
 
 interface TrialAlertProps {
   user?: any;
@@ -11,18 +12,8 @@ export const TrialAlert: React.FC<TrialAlertProps> = ({ user }) => {
   useEffect(() => {
     const fetchTrial = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(
-          `${process.env.REACT_APP_API_URL}/api/users/subscription`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            credentials: 'include',
-          }
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setTrialData(data.data);
-        }
+        const data = await makeAuthenticatedRequest('/users/subscription');
+        setTrialData(data.data);
       } catch (error) {
         console.error('Trial fetch error:', error);
       }
