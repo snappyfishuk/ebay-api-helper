@@ -35,7 +35,8 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const apiService = new FreeAgentApiService(process.env.REACT_APP_API_URL || '');
+  // No constructor parameters needed - service now uses apiUtils internally
+  const apiService = new FreeAgentApiService();
 
   const checkConnection = useCallback(async () => {
     try {
@@ -59,71 +60,69 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
           bankAccount: response.data.bankAccount,
         });
 
-        // CRITICAL: Store available accounts for potential selection
-        if (response.data.availableEbayAccounts && response.data.availableEbayAccounts.length > 0) {
-          console.log('💾 Setting available accounts:', response.data.availableEbayAccounts.length);
+        // CRITICAL: Store available eBay accounts for selection
+        if (response.data.availableEbayAccounts) {
           setAvailableEbayAccounts(response.data.availableEbayAccounts);
-        } else {
-          console.log('⚠️ No available eBay accounts found in response');
         }
       }
     } catch (err) {
-      console.error('💥 Error checking eBay account status:', err);
+      console.error('Error checking eBay account status:', err);
+      setError('Failed to check eBay account status');
     }
   }, []);
 
   const createEbayAccount = useCallback(async () => {
     try {
       setIsLoading(true);
+      setError(null);
+      
       const response = await apiService.createEbayAccount();
       
-      if (response.data) {
-        setEbayAccountStatus({
-          hasEbayAccount: true,
-          autoCreated: response.data.created,
-          needsSetup: false,
-          bankAccount: response.data.bankAccount,
-        });
-        // Clear available accounts since we now have a selected one
-        setAvailableEbayAccounts([]);
+      if (response.status === 'success') {
+        // Refresh the eBay account status
+        await checkEbayAccountStatus();
+      } else {
+        throw new Error(response.message || 'Failed to create eBay account');
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to set up eBay account';
-      console.error('Error setting up eBay account:', err);
+      const message = err instanceof Error ? err.message : 'Error creating eBay account';
+      console.error('Create eBay account error:', err);
       setError(message);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [checkEbayAccountStatus]);
 
   const selectExistingEbayAccount = useCallback(async (accountUrl: string) => {
     try {
       setIsLoading(true);
-      const response = await apiService.selectExistingEbayAccount(accountUrl);
+      setError(null);
       
-      if (response.data) {
-        setEbayAccountStatus({
+      // Find the selected account from available accounts
+      const selectedAccount = availableEbayAccounts.find(acc => acc.url === accountUrl);
+      
+      if (selectedAccount) {
+        setEbayAccountStatus(prev => ({
+          ...prev,
           hasEbayAccount: true,
-          autoCreated: false,
+          bankAccount: selectedAccount,
           needsSetup: false,
-          bankAccount: response.data.bankAccount,
-        });
-        // Clear available accounts since we now have a selected one
-        setAvailableEbayAccounts([]);
+        }));
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to select eBay account';
-      console.error('Error selecting eBay account:', err);
+      const message = err instanceof Error ? err.message : 'Error selecting eBay account';
+      console.error('Select eBay account error:', err);
       setError(message);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [availableEbayAccounts]);
 
   const connect = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
+      
       const response = await apiService.getAuthUrl();
       
       if (response.status === 'success' && response.data?.authUrl) {

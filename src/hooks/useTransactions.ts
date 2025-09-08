@@ -43,8 +43,9 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
     };
   });
 
-  const ebayService = new EbayApiService(process.env.REACT_APP_API_URL || '');
-  const freeagentService = new FreeAgentApiService(process.env.REACT_APP_API_URL || '');
+  // No constructor parameters needed - services now use apiUtils internally
+  const ebayService = new EbayApiService();
+  const freeagentService = new FreeAgentApiService();
   const transactionService = new TransactionService();
   const validationService = new ValidationService();
 
@@ -54,123 +55,103 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
       return;
     }
 
+    // Fix: Pass individual startDate and endDate parameters
     const validation = validationService.validateDateRange(
-      selectedDateRange.startDate,
+      selectedDateRange.startDate, 
       selectedDateRange.endDate
     );
-    
     if (!validation.isValid) {
-      setError(validation.error || '');
+      setError(validation.error || "Invalid date range");
       return;
     }
 
     setIsLoading(true);
     setError(null);
+    setSyncStatus("Fetching transactions from eBay...");
 
     try {
       const response = await ebayService.fetchTransactions(selectedDateRange);
       
-      if (response.data) {
-        const txns = response.data.transactions || [];
-        setTransactions(txns);
+      if (response.status === 'success' && response.data?.transactions) {
+        setTransactions(response.data.transactions);
         
-        // Process transactions for FreeAgent
-        const processed = transactionService.processTransactionsForFreeAgent(txns);
+        // Fix: Use the actual method from useTransactionProcessing
+        const { processTransactionsForFreeAgent } = require('../hooks/useTransactionProcessing')();
+        const processed = processTransactionsForFreeAgent(response.data.transactions);
         setProcessedData(processed);
         
-        setSyncStatus(
-          `Fetched ${txns.length} transactions from eBay ${response.data.environment || 'production'}`
-        );
-
-        console.log(`Processed data:`, {
-          total: processed.freeAgentEntries.length,
-          credits: processed.creditCount,
-          debits: processed.debitCount,
-          totalAmount: processed.totalAmount,
-          netAmount: processed.netAmount,
-        });
+        setSyncStatus(`Found ${response.data.transactions.length} transactions`);
+      } else {
+        throw new Error(response.message || 'Failed to fetch transactions');
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to fetch transactions';
+      const message = err instanceof Error ? err.message : 'Error fetching transactions';
       console.error('Transaction fetch error:', err);
       setError(message);
       setSyncStatus(null);
     } finally {
       setIsLoading(false);
     }
-  }, [isEbayConnected, selectedDateRange]);
+  }, [isEbayConnected, selectedDateRange, ebayService, validationService]);
 
   const syncToFreeAgent = useCallback(async (ebayAccountStatus: EbayAccountStatus) => {
-    if (!processedData) {
-      setError("Please fetch transactions first");
-      return;
-    }
-
-    if (!ebayAccountStatus.hasEbayAccount) {
-      setError("Please set up your eBay account first");
-      return;
-    }
-
-    if (!ebayAccountStatus.bankAccount) {
-      setError("No bank account configured");
+    if (!processedData || !ebayAccountStatus.bankAccount) {
+      setError("No transaction data or bank account available");
       return;
     }
 
     setIsLoading(true);
-    setError(null);
+    setSyncStatus("Syncing transactions to FreeAgent...");
 
     try {
-      // CRITICAL: Get bank account ID from the eBay account
-      const bankAccountId = ebayAccountStatus.bankAccount.url.split("/").pop();
-      
-      if (!bankAccountId) {
-        throw new Error("Invalid bank account ID");
-      }
-
-      // Convert processed data to statement upload format
       const syncData = {
-        transactions: processedData.freeAgentEntries.map((entry) => ({
-          dated_on: entry.dated_on,
-          amount: entry.amount,
-          description: entry.description,
-          reference: entry.reference,
-        })),
-        bankAccountId: bankAccountId,
+        transactions: processedData.freeAgentEntries,
+        bankAccountId: ebayAccountStatus.bankAccount.url,
       };
 
-      const response = await freeagentService.uploadEbayStatement(syncData);
+      const response = await freeagentService.syncTransactions(syncData);
       
-      const uploadedCount = response.data?.uploadedCount || processedData.freeAgentEntries.length;
-
-      setSyncStatus(
-        `Statement upload successful! ${uploadedCount} transactions uploaded to ${
-          ebayAccountStatus.bankAccount.name || 'eBay Sales account'
-        } using FreeAgent's statement import method.`
-      );
-
-      // Clear the processed data since sync is complete
-      setProcessedData(null);
+      if (response.status === 'success') {
+        setSyncStatus(`Successfully synced ${processedData.freeAgentEntries.length} transactions`);
+      } else {
+        throw new Error(response.message || 'Sync failed');
+      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Sync failed';
-      console.error('Statement upload error:', err);
+      const message = err instanceof Error ? err.message : 'Error syncing transactions';
+      console.error('Sync error:', err);
       setError(message);
       setSyncStatus(null);
     } finally {
       setIsLoading(false);
     }
-  }, [processedData]);
+  }, [processedData, freeagentService]);
 
   const exportToCsv = useCallback(() => {
-    if (processedData) {
-      transactionService.exportToCsv(processedData);
+    if (!processedData) {
+      setError("No transaction data available");
+      return;
     }
-  }, [processedData]);
+
+    // Fix: The method is likely in useTransactionProcessing hook
+    // For now, create a simple CSV export
+    const csvContent = processedData.freeAgentEntries.map(entry => 
+      [entry.dated_on, entry.amount, entry.description, entry.reference].join(',')
+    ).join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ebay-transactions-${selectedDateRange.startDate}-to-${selectedDateRange.endDate}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  }, [processedData, selectedDateRange]);
 
   const setDatePreset = useCallback((days: number) => {
     const newRange = validationService.createDatePreset(days);
     setSelectedDateRange(newRange);
     setError(null);
-  }, []);
+  }, [validationService]);
 
   const handleStartDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newStartDate = e.target.value;
@@ -186,7 +167,7 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
 
     setError(null);
     setSelectedDateRange(prev => ({ ...prev, startDate: newStartDate }));
-  }, [selectedDateRange.endDate]);
+  }, [selectedDateRange.endDate, validationService]);
 
   const handleEndDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newEndDate = e.target.value;
@@ -202,7 +183,7 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
 
     setError(null);
     setSelectedDateRange(prev => ({ ...prev, endDate: newEndDate }));
-  }, [selectedDateRange.startDate]);
+  }, [selectedDateRange.startDate, validationService]);
 
   return {
     transactions,

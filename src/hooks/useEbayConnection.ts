@@ -20,7 +20,8 @@ export const useEbayConnection = (): UseEbayConnectionReturn => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const apiService = new EbayApiService(process.env.REACT_APP_API_URL || '');
+  // No constructor parameters needed - apiUtils handles the URL
+  const apiService = new EbayApiService();
 
   const checkConnection = useCallback(async () => {
     try {
