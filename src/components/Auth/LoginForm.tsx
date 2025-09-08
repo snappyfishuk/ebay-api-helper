@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 
 interface LoginFormProps {
-  onLogin: () => void; // This is now just a callback for UI state
+  onLogin: () => void;
   switchToRegister: () => void;
 }
 
@@ -19,13 +19,17 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
   });
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  const [debugInfo, setDebugInfo] = useState<string>("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setDebugInfo("Starting login...");
 
     try {
+      setDebugInfo("Making API request...");
+      
       const response = await fetch(
         `${process.env.REACT_APP_API_URL}/api/auth/login`,
         {
@@ -37,6 +41,8 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
           credentials: "include",
         }
       );
+
+      setDebugInfo(`Response status: ${response.status}, OK: ${response.ok}`);
 
       // Handle rate limiting specifically
       if (response.status === 429) {
@@ -51,10 +57,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
         try {
           const errorData = await response.json();
           errorMessage = errorData.message || errorMessage;
+          setDebugInfo(`Error data: ${JSON.stringify(errorData)}`);
         } catch {
-          // If response isn't JSON (like 429 responses), use text
           const errorText = await response.text();
           errorMessage = errorText || errorMessage;
+          setDebugInfo(`Error text: ${errorText}`);
         }
         setError(errorMessage);
         setLoading(false);
@@ -63,16 +70,28 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
 
       // Success case
       const responseData = await response.json();
+      setDebugInfo(`Response data: ${JSON.stringify(responseData)}`);
+      
       if (responseData.status === "success") {
-        // Use AuthContext login method
-        login(responseData.data.user, responseData.data.token);
-        onLogin(); // Call callback for any UI state changes
+        setDebugInfo("Login successful, calling AuthContext login...");
+        
+        // Check if we have the expected data structure
+        if (responseData.data && responseData.data.user && responseData.data.token) {
+          login(responseData.data.user, responseData.data.token);
+          setDebugInfo("AuthContext login called successfully");
+          onLogin();
+        } else {
+          setError("Invalid response structure from server");
+          setDebugInfo(`Missing data: user=${!!responseData.data?.user}, token=${!!responseData.data?.token}`);
+        }
       } else {
         setError(responseData.message || "Login failed");
+        setDebugInfo(`Login failed: ${responseData.message}`);
       }
     } catch (error) {
       console.error("Login error:", error);
       setError("Network error - please check your connection and try again");
+      setDebugInfo(`Network error: ${error}`);
     } finally {
       setLoading(false);
     }
@@ -94,6 +113,13 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
             Sign in to your eBay Helper account
           </p>
         </div>
+
+        {/* Debug Info */}
+        {debugInfo && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <p className="text-xs text-blue-800">Debug: {debugInfo}</p>
+          </div>
+        )}
 
         {/* Rate limit warning banner */}
         {error && error.includes('Too many requests') && (
@@ -168,6 +194,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
           >
             Don't have an account? Sign up
           </button>
+        </div>
+
+        {/* Debug panel */}
+        <div className="mt-4 text-xs text-gray-500">
+          API URL: {process.env.REACT_APP_API_URL}
         </div>
       </div>
     </div>
