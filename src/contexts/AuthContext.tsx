@@ -1,7 +1,7 @@
 // src/contexts/AuthContext.tsx
-
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '../types/user.types';
+import { makeAuthenticatedRequest, makePublicRequest } from '../utils/apiUtils';
 
 interface AuthContextType {
   user: User | null;
@@ -43,18 +43,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       try {
-        // Use the existing /api/auth/me endpoint
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/me`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${storedToken}`,
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-        });
-
-        if (response.ok) {
-          const data = await response.json();
+        // Use the makeAuthenticatedRequest utility
+        const data = await makeAuthenticatedRequest('/auth/me');
+        
+        if (data.status === 'success') {
           setUser(data.data.user);
           setToken(storedToken);
         } else {
@@ -84,10 +76,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
-      // Call backend logout endpoint
-      await fetch(`${process.env.REACT_APP_API_URL}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
+      // Call backend logout endpoint using makePublicRequest
+      await makePublicRequest('/auth/logout', {
+        method: 'POST'
       });
     } catch (error) {
       console.error('Logout error:', error);

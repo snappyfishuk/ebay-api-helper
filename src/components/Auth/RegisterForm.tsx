@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { makePublicRequest } from "../../utils/apiUtils";
 
 const RegisterForm = ({ onRegister, switchToLogin }) => {
   const [formData, setFormData] = useState({
@@ -30,24 +31,17 @@ const RegisterForm = ({ onRegister, switchToLogin }) => {
     }
 
     try {
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/auth/register`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            email: formData.email,
-            password: formData.password,
-          }),
-        }
-      );
+      const data = await makePublicRequest('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (data.status === 'success') {
         localStorage.setItem("token", data.token);
         onRegister(data.data.user);
       } else {
@@ -55,7 +49,7 @@ const RegisterForm = ({ onRegister, switchToLogin }) => {
       }
     } catch (error) {
       console.error("Registration error:", error);
-      setError("Network error - please try again");
+      setError(error.message || "Network error - please try again");
     } finally {
       setLoading(false);
     }
