@@ -1,77 +1,23 @@
-import React, { useState, useEffect } from "react";
-import {
-  LogOut,
-} from "lucide-react";
+import React from "react";
+import { LogOut } from "lucide-react";
 
 // Auth Components
 import LoginForm from "./components/Auth/LoginForm";
 import RegisterForm from "./components/Auth/RegisterForm";
 
 // Page Components
-import EbayApiAccountingHelper from "./EbayApiAccountingHelper"; // Your existing main component
+import EbayApiAccountingHelper from "./EbayApiAccountingHelper";
 
-function App() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [authMode, setAuthMode] = useState("login");
+// Auth Context
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
+// Import your existing User type
+import { User } from "./types/user.types";
 
-  const checkAuthStatus = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/auth/me`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          credentials: "include",
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.data.user);
-      } else {
-        localStorage.removeItem("token");
-      }
-    } catch (error) {
-      console.error("Auth check failed:", error);
-      localStorage.removeItem("token");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogin = (userData) => {
-    setUser(userData);
-  };
-
-  const handleRegister = (userData) => {
-    setUser(userData);
-  };
-
-  const handleLogout = async () => {
-    try {
-      await fetch(`${process.env.REACT_APP_API_URL}/api/auth/logout`, {
-        method: "POST",
-        credentials: "include",
-      });
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      localStorage.removeItem("token");
-      setUser(null);
-    }
-  };
+// Main App Content Component (uses AuthContext)
+const AppContent: React.FC = () => {
+  const { user, loading, logout, isAuthenticated } = useAuth();
+  const [authMode, setAuthMode] = React.useState<"login" | "register">("login");
 
   // Loading state
   if (loading) {
@@ -86,7 +32,7 @@ function App() {
   }
 
   // Authentication screens
-  if (!user) {
+  if (!isAuthenticated || !user) {
     return (
       <div className="min-h-screen bg-gray-100 py-12">
         <div className="container mx-auto px-4">
@@ -101,12 +47,18 @@ function App() {
 
           {authMode === "login" ? (
             <LoginForm
-              onLogin={handleLogin}
+              onLogin={() => {
+                // Login handled by AuthContext
+                // Component will re-render when auth state changes
+              }}
               switchToRegister={() => setAuthMode("register")}
             />
           ) : (
             <RegisterForm
-              onRegister={handleRegister}
+              onRegister={() => {
+                // Register handled by AuthContext
+                // Component will re-render when auth state changes
+              }}
               switchToLogin={() => setAuthMode("login")}
             />
           )}
@@ -137,7 +89,10 @@ function App() {
               <div className="flex items-center mr-4">
                 <div className="text-right mr-4">
                   <div className="text-sm font-medium text-gray-900">
-                    {user.firstName} {user.lastName}
+                    {user.firstName && user.lastName 
+                      ? `${user.firstName} ${user.lastName}`
+                      : user.email
+                    }
                   </div>
                   <div className="text-xs text-gray-500">{user.email}</div>
                 </div>
@@ -145,7 +100,7 @@ function App() {
 
               {/* Logout Button */}
               <button
-                onClick={handleLogout}
+                onClick={logout}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
               >
                 <LogOut className="mr-2 h-4 w-4" />
@@ -162,6 +117,15 @@ function App() {
       </main>
     </div>
   );
-}
+};
+
+// Main App Component (wraps with AuthProvider)
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+};
 
 export default App;

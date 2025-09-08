@@ -1,14 +1,26 @@
 import React, { useState } from "react";
+import { useAuth } from "../../contexts/AuthContext";
 
-const LoginForm = ({ onLogin, switchToRegister }) => {
-  const [formData, setFormData] = useState({
+interface LoginFormProps {
+  onLogin: () => void; // This is now just a callback for UI state
+  switchToRegister: () => void;
+}
+
+interface FormData {
+  email: string;
+  password: string;
+}
+
+const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
+  const { login } = useAuth();
+  const [formData, setFormData] = useState<FormData>({
     email: "",
     password: "",
   });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -52,8 +64,9 @@ const LoginForm = ({ onLogin, switchToRegister }) => {
       // Success case
       const responseData = await response.json();
       if (responseData.status === "success") {
-        localStorage.setItem("token", responseData.data.token);
-        onLogin(responseData.data.user);
+        // Use AuthContext login method
+        login(responseData.data.user, responseData.data.token);
+        onLogin(); // Call callback for any UI state changes
       } else {
         setError(responseData.message || "Login failed");
       }
@@ -65,7 +78,7 @@ const LoginForm = ({ onLogin, switchToRegister }) => {
     }
   };
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
