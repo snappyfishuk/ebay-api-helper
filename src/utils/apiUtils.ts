@@ -1,112 +1,153 @@
 // src/utils/apiUtils.ts
+/**
+ * API Utilities for eBay Helper
+ * Handles proper URL construction and request patterns
+ */
 
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+const API_BASE_URL: string = process.env.REACT_APP_API_URL || 'https://ebay-freeagent-backend.onrender.com/api';
 
-interface RequestOptions extends RequestInit {
-  headers?: Record<string, string>;
-}
-
-interface ApiResponse<T = any> {
-  status: string;
-  data?: T;
-  message?: string;
-}
-
-// Centralized API request handler with auth
-export const makeAuthenticatedRequest = async <T = any>(
-  endpoint: string, 
-  options: RequestOptions = {}
-): Promise<T> => {
+/**
+ * Get auth headers with bearer token
+ */
+export const getAuthHeaders = (): Record<string, string> => {
   const token = localStorage.getItem("token");
-  
-  if (!token) {
-    // Redirect to login if no token
-    window.location.href = '/login';
-    throw new Error("No authentication token found");
-  }
-
-  const defaultHeaders: Record<string, string> = {
+  return {
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${token}`,
   };
-
-  const requestOptions: RequestInit = {
-    headers: {
-      ...defaultHeaders,
-      ...options.headers,
-    },
-    credentials: "include", // Important for cookies
-    ...options,
-  };
-
-  try {
-    const response = await fetch(`${API_BASE}${endpoint}`, requestOptions);
-    
-    // Handle 401 errors globally
-    if (response.status === 401) {
-      // Token is invalid/expired
-      localStorage.removeItem("token");
-      window.location.href = '/login';
-      throw new Error("Authentication failed. Please log in again.");
-    }
-    
-    if (!response.ok) {
-      let errorMessage = `Request failed: ${response.statusText}`;
-      try {
-        const errorData: ApiResponse = await response.json();
-        errorMessage = errorData.message || errorMessage;
-      } catch {
-        // If response body isn't JSON, use default message
-      }
-      throw new Error(errorMessage);
-    }
-    
-    const data: ApiResponse<T> = await response.json();
-    return data.data || data as T;
-  } catch (error) {
-    console.error(`API Error (${endpoint}):`, error);
-    throw error;
-  }
 };
 
-// Helper for non-authenticated requests (login, register, etc.)
-export const makePublicRequest = async <T = any>(
+/**
+ * Make authenticated API request
+ * Use for endpoints that require user authentication
+ */
+export const makeAuthenticatedRequest = async (
   endpoint: string,
-  options: RequestOptions = {}
-): Promise<T> => {
-  const defaultHeaders: Record<string, string> = {
-    "Content-Type": "application/json",
+  options: RequestInit = {}
+): Promise<any> => {
+  // Ensure endpoint starts with /
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  
+  const url = `${API_BASE_URL}${cleanEndpoint}`;
+  
+  const defaultOptions: RequestInit = {
+    headers: getAuthHeaders(),
+    credentials: 'include',
   };
 
-  const requestOptions: RequestInit = {
+  const mergedOptions: RequestInit = {
+    ...defaultOptions,
+    ...options,
     headers: {
-      ...defaultHeaders,
+      ...defaultOptions.headers,
       ...options.headers,
     },
-    credentials: "include",
-    ...options,
   };
 
-  try {
-    const response = await fetch(`${API_BASE}${endpoint}`, requestOptions);
-    
-    if (!response.ok) {
-      let errorMessage = `Request failed: ${response.statusText}`;
-      try {
-        const errorData: ApiResponse = await response.json();
-        errorMessage = errorData.message || errorMessage;
-      } catch {
-        // If response body isn't JSON, use default message
-      }
-      throw new Error(errorMessage);
+  console.log(`🔗 API Request: ${options.method || 'GET'} ${url}`);
+
+  const response = await fetch(url, mergedOptions);
+  
+  if (!response.ok) {
+    let errorMessage = `HTTP ${response.status}`;
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.message || errorMessage;
+    } catch {
+      const errorText = await response.text();
+      errorMessage = errorText || errorMessage;
     }
-    
-    const data: ApiResponse<T> = await response.json();
-    return data.data || data as T;
-  } catch (error) {
-    console.error(`Public API Error (${endpoint}):`, error);
-    throw error;
+    throw new Error(errorMessage);
   }
+
+  return response.json();
 };
 
-export default makeAuthenticatedRequest;
+/**
+ * Make public API request (no authentication required)
+ * Use for login, register, password reset, etc.
+ */
+export const makePublicRequest = async (
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<any> => {
+  // Ensure endpoint starts with /
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  
+  const url = `${API_BASE_URL}${cleanEndpoint}`;
+  
+  const defaultOptions: RequestInit = {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+  };
+
+  const mergedOptions: RequestInit = {
+    ...defaultOptions,
+    ...options,
+    headers: {
+      ...defaultOptions.headers,
+      ...options.headers,
+    },
+  };
+
+  console.log(`🔗 Public API Request: ${options.method || 'GET'} ${url}`);
+
+  const response = await fetch(url, mergedOptions);
+  
+  if (!response.ok) {
+    let errorMessage = `HTTP ${response.status}`;
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.message || errorMessage;
+    } catch {
+      const errorText = await response.text();
+      errorMessage = errorText || errorMessage;
+    }
+    throw new Error(errorMessage);
+  }
+
+  return response.json();
+};
+
+/**
+ * Helper for GET requests with authentication
+ */
+export const apiGet = (endpoint: string): Promise<any> => 
+  makeAuthenticatedRequest(endpoint, { method: 'GET' });
+
+/**
+ * Helper for POST requests with authentication
+ */
+export const apiPost = (endpoint: string, data?: any): Promise<any> =>
+  makeAuthenticatedRequest(endpoint, {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : undefined,
+  });
+
+/**
+ * Helper for PUT requests with authentication
+ */
+export const apiPut = (endpoint: string, data?: any): Promise<any> =>
+  makeAuthenticatedRequest(endpoint, {
+    method: 'PUT',
+    body: data ? JSON.stringify(data) : undefined,
+  });
+
+/**
+ * Helper for DELETE requests with authentication
+ */
+export const apiDelete = (endpoint: string): Promise<any> =>
+  makeAuthenticatedRequest(endpoint, { method: 'DELETE' });
+
+const apiUtils = {
+  makeAuthenticatedRequest,
+  makePublicRequest,
+  apiGet,
+  apiPost,
+  apiPut,
+  apiDelete,
+};
+
+export default apiUtils;

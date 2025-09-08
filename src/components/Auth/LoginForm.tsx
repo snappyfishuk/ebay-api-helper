@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import TwoFactorVerification from "../TwoFactorVerification";
+import { makePublicRequest } from "../../utils/apiUtils";
 
 interface LoginFormProps {
   onLogin: () => void;
@@ -40,39 +41,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
         }),
       };
 
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/auth/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-          credentials: "include",
-        }
-      );
-
-      if (response.status === 429) {
-        setError('Too many requests. Please wait 15 minutes and try again.');
-        setLoading(false);
-        return;
-      }
-
-      if (!response.ok) {
-        let errorMessage = 'Login failed';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch {
-          const errorText = await response.text();
-          errorMessage = errorText || errorMessage;
-        }
-        setError(errorMessage);
-        setLoading(false);
-        return;
-      }
-
-      const responseData = await response.json();
+      // Use the new API utility instead of manual fetch
+      const responseData = await makePublicRequest('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(requestBody),
+      });
       
       if (responseData.status === "2fa_required") {
         setRequiresTwoFactor(true);
@@ -90,9 +63,19 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, switchToRegister }) => {
       } else {
         setError(responseData.message || "Login failed");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error);
-      setError("Network error - please check your connection and try again");
+      
+      // Handle specific error cases
+      if (error.message?.includes('429')) {
+        setError('Too many requests. Please wait 15 minutes and try again.');
+      } else if (error.message?.includes('401')) {
+        setError('Incorrect email or password');
+      } else if (error.message?.includes('Network')) {
+        setError("Network error - please check your connection and try again");
+      } else {
+        setError(error.message || "Login failed - please try again");
+      }
     } finally {
       setLoading(false);
     }
