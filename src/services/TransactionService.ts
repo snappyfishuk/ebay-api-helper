@@ -184,48 +184,39 @@ export class TransactionService {
   }
 
 /**
- * Export transactions to CSV with FreeAgent format - CORRECTED VERSION
- * Format: Date,Money Out,Money In,Description (4 columns with header)
+ * Export transactions to CSV with CORRECT FreeAgent format 
+ * Format: Date,Amount,Description (3 columns - NOT 4!)
  * As per: https://support.freeagent.com/hc/en-gb/articles/115001222564-Format-a-CSV-file-to-upload-a-bank-statement
  */
 public exportToCsv(processedData: ProcessedTransactionData): void {
   if (!processedData || !processedData.freeAgentEntries) return;
 
-  // Convert to FreeAgent CSV format (4 columns)
+  // Convert to FreeAgent CSV format (3 columns only!)
   const csvRows = processedData.freeAgentEntries.map((entry) => {
     // Convert ISO date (YYYY-MM-DD) to DD/MM/YYYY format preferred by FreeAgent
     const dateParts = entry.dated_on.split('-');
     const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
     
-    // Determine if this is a debit (money going out) or credit (money coming in)
-    const isDebit = entry.isDebit !== undefined ? entry.isDebit : entry.amount < 0;
-    const amount = Math.abs(entry.amount);
+    // CRITICAL: FreeAgent uses SINGLE amount column with negative/positive values
+    // Positive = Money In (sales, receipts)
+    // Negative = Money Out (fees, payments, refunds)
+    const amount = entry.amount; // Keep original sign: negative for debits, positive for credits
     
-    // FreeAgent CSV Logic (CRITICAL - 4 columns required):
-    // Column 1: Date (DD/MM/YYYY)
-    // Column 2: Money Out (debits/fees) - only populate if money going out
-    // Column 3: Money In (credits/sales) - only populate if money coming in  
-    // Column 4: Description
-    const moneyOut = isDebit ? amount.toFixed(2) : '';
-    const moneyIn = !isDebit ? amount.toFixed(2) : '';
+    // Clean description - remove quotes and commas that could break CSV
+    const cleanDescription = entry.description
+      .replace(/"/g, '') // Remove quotes
+      .replace(/,/g, ';') // Replace commas with semicolons
+      .trim();
     
-    // Escape quotes and ensure description is properly formatted
-    const cleanDescription = entry.description.replace(/"/g, '""');
-    const description = `"${cleanDescription}"`;
-    
-    return `${formattedDate},${moneyOut},${moneyIn},${description}`;
+    // FreeAgent CSV format: Date,Amount,Description (3 columns)
+    return `${formattedDate},${amount.toFixed(2)},${cleanDescription}`;
   });
 
-  // CRITICAL: FreeAgent CSV MUST have this exact header
-  const header = "Date,Money Out,Money In,Description";
-  const csvContent = header + "\n" + csvRows.join("\n");
-
-  // Add BOM for Excel compatibility and proper encoding
-  const BOM = '\uFEFF';
-  const csvWithBOM = BOM + csvContent;
+  // NO HEADER ROW for FreeAgent CSV uploads
+  const csvContent = csvRows.join("\n");
 
   // Download the file
-  const blob = new Blob([csvWithBOM], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -235,14 +226,12 @@ public exportToCsv(processedData: ProcessedTransactionData): void {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
   
-  console.log(`✅ Exported ${csvRows.length} transactions to FreeAgent CSV format`);
-  console.log("Header:", header);
+  console.log(`✅ Exported ${csvRows.length} transactions to FreeAgent CSV format (3 columns)`);
   console.log("Sample rows:", csvRows.slice(0, 3));
 }
 
 /**
- * FIXED: Alternative method to generate FreeAgent CSV from raw eBay transactions
- * Use this if you need to convert directly from eBay transaction format
+ * ALTERNATIVE: Export with proper amount sign handling based on eBay transaction types
  */
 public exportEbayTransactionsToCsv(ebayTransactions: any[]): void {
   if (!ebayTransactions || ebayTransactions.length === 0) return;
@@ -252,25 +241,40 @@ public exportEbayTransactionsToCsv(ebayTransactions: any[]): void {
     const transactionDate = new Date(txn.transactionDate || txn.dated_on);
     const formattedDate = transactionDate.toLocaleDateString('en-GB'); // DD/MM/YYYY format
     
-    // Get amount - handle both positive and negative
-    const amount = parseFloat(txn.amount || txn.displayAmount || 0);
-    const absAmount = Math.abs(amount);
+    // Handle amount with correct signs for FreeAgent
+    let amount = parseFloat(txn.amount || txn.displayAmount || 0);
     
-    // Determine Money Out vs Money In
-    // eBay logic: negative amounts = fees/refunds (Money Out), positive = sales (Money In)
-    const moneyOut = amount < 0 ? absAmount.toFixed(2) : '';
-    const moneyIn = amount > 0 ? absAmount.toFixed(2) : '';
+    // Ensure correct signs based on eBay transaction types
+    if (txn.transactionType) {
+      const transactionType = txn.transactionType.toLowerCase();
+      
+      // These should be negative (money out)
+      if (transactionType.includes('fee') || 
+          transactionType.includes('refund') || 
+          transactionType.includes('charge') ||
+          transactionType.includes('payout')) {
+        amount = -Math.abs(amount); // Force negative
+      } 
+      // These should be positive (money in)
+      else if (transactionType.includes('sale') || 
+               transactionType.includes('payment') ||
+               transactionType.includes('credit')) {
+        amount = Math.abs(amount); // Force positive
+      }
+    }
     
-    // Build description
-    const description = txn.description || this.generateEnhancedTransactionDescription(txn) || 'eBay Transaction';
-    const cleanDescription = description.replace(/"/g, '""');
+    // Build description without commas
+    const description = (txn.description || this.generateEnhancedTransactionDescription(txn) || 'eBay Transaction')
+      .replace(/"/g, '') // Remove quotes
+      .replace(/,/g, ';') // Replace commas with semicolons
+      .trim();
     
-    return `${formattedDate},${moneyOut},${moneyIn},"${cleanDescription}"`;
+    // FreeAgent format: Date,Amount,Description
+    return `${formattedDate},${amount.toFixed(2)},${description}`;
   });
 
-  // FreeAgent required header
-  const header = "Date,Money Out,Money In,Description";
-  const csvContent = header + "\n" + csvRows.join("\n");
+  // No header row needed
+  const csvContent = csvRows.join("\n");
   
   // Download
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -290,19 +294,15 @@ public exportEbayTransactionsToCsv(ebayTransactions: any[]): void {
 public previewCsvFormat(processedData: ProcessedTransactionData): string[] {
   if (!processedData?.freeAgentEntries) return [];
 
-  const header = "Date,Money Out,Money In,Description";
-  const preview = [header];
+  const preview: string[] = [];
   
   processedData.freeAgentEntries.slice(0, 5).forEach((entry) => {
     const dateParts = entry.dated_on.split('-');
     const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
-    const isDebit = entry.isDebit !== undefined ? entry.isDebit : entry.amount < 0;
-    const amount = Math.abs(entry.amount);
-    const moneyOut = isDebit ? amount.toFixed(2) : '';
-    const moneyIn = !isDebit ? amount.toFixed(2) : '';
-    const description = `"${entry.description.replace(/"/g, '""')}"`;
+    const amount = entry.amount.toFixed(2);
+    const description = entry.description.replace(/"/g, '').replace(/,/g, ';');
     
-    preview.push(`${formattedDate},${moneyOut},${moneyIn},${description}`);
+    preview.push(`${formattedDate},${amount},${description}`);
   });
   
   return preview;
