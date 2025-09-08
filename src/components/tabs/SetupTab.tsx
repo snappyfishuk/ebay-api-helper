@@ -207,7 +207,7 @@ const StreamlinedFreeAgentSection: React.FC<{
           {/* eBay Account Setup */}
           <div className="bg-emerald-100 border border-emerald-300 rounded-lg p-4">
             <h4 className="font-bold text-emerald-900 mb-3">
-              Nominated Bank Account: eBay Sales Account
+              FreeAgent Bank Account Created
             </h4>
 
             {ebayAccountStatus.hasEbayAccount ? (
