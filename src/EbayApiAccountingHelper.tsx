@@ -40,24 +40,23 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
   // Error aggregation
   const error = ebayConnection.error || freeagentConnection.error || transactionsManager.error;
 
-  // Initialize connections on mount
-  useEffect(() => {
-    if (user) {
-      Promise.all([
-        ebayConnection.checkConnection(),
-        freeagentConnection.checkConnection(),
-      ]);
+// Initialize connections on mount - FIXED to prevent infinite API calls
+useEffect(() => {
+  if (user) {
+    // Only call these once when user is available
+    ebayConnection.checkConnection();
+    freeagentConnection.checkConnection();
 
-      console.log("USER DATA CHECK:", {
-        hasUser: !!user,
-        email: user?.email,
-        ebayConnected: user?.ebayConnection?.isConnected,
-        ebayEnvironment: user?.ebayConnection?.environment,
-        ebayUsername: user?.ebayConnection?.username,
-        ebayUserId: user?.ebayConnection?.userId
-      });
-    }
-  }, [user, ebayConnection, freeagentConnection]);
+    console.log("USER DATA CHECK:", {
+      hasUser: !!user,
+      email: user?.email,
+      ebayConnected: user?.ebayConnection?.isConnected,
+      ebayEnvironment: user?.ebayConnection?.environment,
+      ebayUsername: user?.ebayConnection?.username,
+      ebayUserId: user?.ebayConnection?.userId
+    });
+  }
+}, [user]); // Only depend on user - removes the infinite loop
 
   // Navigation content renderer
   const renderContent = () => {
