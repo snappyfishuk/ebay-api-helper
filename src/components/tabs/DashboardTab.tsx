@@ -1,13 +1,15 @@
 // components/tabs/DashboardTab.tsx
 import React from 'react';
 
+type NavigationId = 'dashboard' | 'autosync' | 'manual' | 'history';
+
 interface DashboardTabProps {
   setupStatus: any;
   user: any;
   connections: any;
   freeagentConnection: any;
   ebayConnection: any;
-  setActiveNav: (nav: string) => void;
+  setActiveNav: (nav: NavigationId) => void;
 }
 
 export const DashboardTab: React.FC<DashboardTabProps> = ({
