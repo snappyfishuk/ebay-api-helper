@@ -115,9 +115,6 @@ const AppContent: React.FC = () => {
       <main className="flex-1">
         <EbayApiAccountingHelper user={user} />
       </main>
-
-      {/* Debug Component - Remove this in production */}
-      <AuthDebug />
     </div>
   );
 };

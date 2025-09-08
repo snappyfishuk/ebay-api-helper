@@ -1,4 +1,4 @@
-// src/contexts/AuthContext.tsx - DEBUG VERSION
+// src/contexts/AuthContext.tsx
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User } from '../types/user.types';
@@ -37,21 +37,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const checkAuth = async () => {
       const storedToken = localStorage.getItem('token');
       
-      // Debug logs
-      console.log('🔍 Auth Check - Token exists:', !!storedToken);
-      console.log('🔍 Auth Check - Token length:', storedToken?.length || 0);
-      console.log('🔍 Auth Check - API URL:', process.env.REACT_APP_API_URL);
-      
       if (!storedToken) {
-        console.log('❌ No token found, skipping auth check');
         setLoading(false);
         return;
       }
 
       try {
-        console.log('🚀 Making auth verification request...');
-        
-        // Use the existing /api/auth/me endpoint instead of /verify
+        // Use the existing /api/auth/me endpoint
         const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/me`, {
           method: 'GET',
           headers: {
@@ -61,31 +53,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           credentials: 'include',
         });
 
-        console.log('📡 Auth response status:', response.status);
-        console.log('📡 Auth response ok:', response.ok);
-
         if (response.ok) {
           const data = await response.json();
-          console.log('✅ Auth successful, user data:', data);
           setUser(data.data.user);
           setToken(storedToken);
         } else {
-          console.log('❌ Auth failed, response status:', response.status);
-          // Try to get error details
-          try {
-            const errorData = await response.json();
-            console.log('❌ Error details:', errorData);
-          } catch (e) {
-            console.log('❌ Could not parse error response');
-          }
-          
-          // Token is invalid
+          // Token is invalid - clear it
           localStorage.removeItem('token');
           setToken(null);
           setUser(null);
         }
       } catch (error) {
-        console.error('❌ Auth verification failed with error:', error);
+        console.error('Auth verification failed:', error);
         localStorage.removeItem('token');
         setToken(null);
         setUser(null);
@@ -98,15 +77,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = (userData: User, userToken: string) => {
-    console.log('✅ Login called with user:', userData.email);
-    console.log('✅ Login token length:', userToken.length);
     setUser(userData);
     setToken(userToken);
     localStorage.setItem('token', userToken);
   };
 
   const logout = async () => {
-    console.log('🚪 Logout called');
     try {
       // Call backend logout endpoint
       await fetch(`${process.env.REACT_APP_API_URL}/api/auth/logout`, {
@@ -123,7 +99,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const updateUser = (updatedUser: User) => {
-    console.log('🔄 User updated:', updatedUser.email);
     setUser(updatedUser);
   };
 
