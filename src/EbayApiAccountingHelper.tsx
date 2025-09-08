@@ -14,7 +14,7 @@ import { AutoSyncTab } from "./components/tabs/AutoSyncTab";
 import { ImportTab } from "./components/tabs/ImportTab";
 import { TransactionsTab } from "./components/tabs/TransactionsTab";
 import { FreeAgentEntriesTab } from "./components/tabs/FreeAgentEntriesTab";
-import { SettingsTab } from "./components/tabs/SettingsTab";
+import SettingsTab from "./components/tabs/SettingsTab";
 
 interface EbayApiAccountingHelperProps {
   user: User;
