@@ -41,22 +41,71 @@ export class EbayApiService {
   }
 
   /**
-   * Fetch eBay transactions
+   * 🔧 UPDATED: Fetch eBay transactions with pagination support
    * CRITICAL: Includes date validation and proper error handling
    */
   async fetchTransactions(
-    dateRange: DateRange
-  ): Promise<ApiResponse<{ transactions: EbayTransaction[]; environment: string }>> {
+    options: DateRange & {
+      fetchAll?: boolean;
+      respectDateRange?: boolean;
+      limit?: number;
+    }
+  ): Promise<ApiResponse<{ 
+    transactions: EbayTransaction[]; 
+    environment: string;
+    limitRemoved?: boolean;
+    fetchMode?: string;
+    pagesFetched?: number;
+    total?: number;
+  }>> {
     console.log(
-      `Fetching transactions from ${dateRange.startDate} to ${dateRange.endDate}`
+      `🔍 Fetching transactions from ${options.startDate} to ${options.endDate}`
     );
+    console.log(`🎯 Fetch mode: ${options.fetchAll ? 'ALL transactions' : 'Limited fetch'}`);
+
+    // Build query parameters
+    const queryParams = new URLSearchParams({
+      startDate: options.startDate,
+      endDate: options.endDate,
+    });
+
+    // 🔧 NEW: Add fetchAll parameter if requested (this triggers backend pagination)
+    if (options.fetchAll) {
+      queryParams.set('fetchAll', 'true');
+    }
+
+    // Add limit for backwards compatibility
+    if (options.limit) {
+      queryParams.set('limit', options.limit.toString());
+    }
 
     const data = await makeAuthenticatedRequest(
-      `/ebay/transactions?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`
+      `/ebay/transactions?${queryParams.toString()}`
     );
 
     if (data.status !== 'success') {
       throw new Error(data.message || "Failed to fetch transactions");
+    }
+
+    // 🔧 ENHANCED: Log pagination details
+    const transactionCount = data.data?.transactions?.length || 0;
+    console.log(`✅ Frontend: Received ${transactionCount} transactions`);
+    
+    if (data.data?.limitRemoved) {
+      console.log('🎯 Confirmed: All transactions in date range fetched (no limits)');
+    }
+    
+    if (data.data?.pagesFetched) {
+      console.log(`📄 Backend fetched ${data.data.pagesFetched} pages`);
+    }
+
+    if (data.data?.fetchMode) {
+      console.log(`🔧 Fetch mode: ${data.data.fetchMode}`);
+    }
+
+    // 🔧 WARNING: Check for exactly 100 transactions (possible limit issue)
+    if (transactionCount === 100 && !data.data?.limitRemoved) {
+      console.warn('⚠️ Received exactly 100 transactions but limitRemoved flag is false - check pagination');
     }
 
     return data;

@@ -10,6 +10,7 @@ import { EbayApiService } from '../services/EbayApiService';
 import { FreeAgentApiService } from '../services/FreeAgentApiService';
 import { TransactionService } from '../services/TransactionService';
 import { ValidationService } from '../services/ValidationService';
+
 interface UseTransactionsReturn {
   transactions: EbayTransaction[];
   processedData: ProcessedTransactionData | null;
@@ -57,7 +58,7 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
       return;
     }
 
-    // FIX: Complete the validation call with both parameters
+    // Validate date range
     const validation = services.validationService.validateDateRange(
       selectedDateRange.startDate,
       selectedDateRange.endDate
@@ -72,19 +73,37 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
     setError(null);
 
     try {
-      const response = await services.ebayService.fetchTransactions(selectedDateRange);
+      console.log(`Fetching ALL transactions from ${selectedDateRange.startDate} to ${selectedDateRange.endDate}`);
+      
+      // UPDATED: Pass fetchAll flag to get all transactions (no limits)
+      const response = await services.ebayService.fetchTransactions({
+        ...selectedDateRange,
+        fetchAll: true, // This triggers pagination on backend
+        respectDateRange: true
+      });
       
       if (response.data) {
         const txns = response.data.transactions || [];
         setTransactions(txns);
         
+        // DEBUG: Check for exactly 100 transactions (indicates possible limit issue)
+        if (txns.length === 100) {
+          console.warn('EXACTLY 100 transactions received - check if pagination is working!');
+          console.log('Response data:', response.data);
+        } else {
+          console.log(`Received ${txns.length} transactions (pagination working)`);
+        }
+        
         // Process transactions for FreeAgent
         const processed = services.transactionService.processTransactionsForFreeAgent(txns);
         setProcessedData(processed);
         
-        setSyncStatus(
-          `Fetched ${txns.length} transactions from eBay ${response.data.environment || 'production'}`
-        );
+        // ENHANCED: Show if limits were removed
+        const statusMessage = response.data.limitRemoved 
+          ? `Fetched ALL ${txns.length} transactions from eBay ${response.data.environment || 'production'} (no limits)`
+          : `Fetched ${txns.length} transactions from eBay ${response.data.environment || 'production'}`;
+        
+        setSyncStatus(statusMessage);
 
         console.log(`Processed data:`, {
           total: processed.freeAgentEntries.length,
@@ -92,7 +111,14 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
           debits: processed.debitCount,
           totalAmount: processed.totalAmount,
           netAmount: processed.netAmount,
+          limitRemoved: response.data.limitRemoved || false,
+          fetchMode: response.data.fetchMode || 'unknown',
         });
+        
+        // Additional validation logging
+        if (response.data.pagesFetched) {
+          console.log(`Pagination stats: ${response.data.pagesFetched} pages fetched`);
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch transactions';
