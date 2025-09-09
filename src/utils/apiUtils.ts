@@ -4,7 +4,7 @@
  * Handles proper URL construction and request patterns
  */
 
-const API_BASE_URL: string = `${process.env.REACT_APP_API_URL || 'https://ebay-freeagent-backend.onrender.com'}/api`;
+const API_BASE_URL: string = process.env.REACT_APP_API_URL || 'https://ebay-freeagent-backend.onrender.com/api';
 /**
  * Get auth headers with bearer token
  */
