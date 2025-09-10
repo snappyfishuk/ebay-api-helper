@@ -20,6 +20,11 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
   const [lagDays, setLagDays] = useState(2);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   
+  // ADD: Date range state for initial sync
+  const [initialSyncDate, setInitialSyncDate] = useState('');
+  const [showDateRange, setShowDateRange] = useState(false);
+  const [syncResults, setSyncResults] = useState<any>(null);
+  
   // Simple message state - just string for message, string for type
   const [msgText, setMsgText] = useState('');
   const [msgType, setMsgType] = useState('');
@@ -43,10 +48,30 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     }
   }, [user]);
 
+  // ADD: Initialize date to 30 days ago
+  useEffect(() => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    setInitialSyncDate(thirtyDaysAgo.toISOString().split('T')[0]);
+  }, []);
+
   // Helper to show messages
   const showMsg = (type: string, text: string) => {
     setMsgType(type);
     setMsgText(text);
+  };
+
+  // ADD: Calculate date range limits
+  const getMaxDate = () => {
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() - lagDays);
+    return maxDate.toISOString().split('T')[0];
+  };
+
+  const getMinDate = () => {
+    const minDate = new Date();
+    minDate.setDate(minDate.getDate() - 90); // 90 days max history
+    return minDate.toISOString().split('T')[0];
   };
 
   // Toggle auto-sync on/off
@@ -108,16 +133,34 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     }
   };
 
-  // Test sync function
+  // UPDATED: Test sync function with date range support
   const testAutoSync = async () => {
     setSaving(true);
+    setSyncResults(null);
+    
     try {
+      // Calculate end date (today minus lag days)
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() - lagDays);
+      
+      // Build request body with optional date range
+      const requestBody: any = {};
+      if (showDateRange && initialSyncDate) {
+        requestBody.dateRange = {
+          startDate: initialSyncDate,
+          endDate: endDate.toISOString().split('T')[0]
+        };
+      }
+      
       const response = await makeAuthenticatedRequest('/autosync/test', {
-        method: 'POST'
+        method: 'POST',
+        body: JSON.stringify(requestBody)
       });
       
       if (response.status === 'success') {
-        showMsg('success', `Test sync completed! ${response.message || 'Check sync history for results.'}`);
+        setSyncResults(response.data);
+        const transactions = response.data?.successful || response.data?.totalTransactions || 0;
+        showMsg('success', `Test sync completed! Synced ${transactions} transactions.`);
       } else {
         console.error('Test failed:', response);
         showMsg('error', 'Test sync failed - check console for details');
@@ -213,6 +256,56 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
               <p className="text-xs text-gray-500 mt-2">Recommended: 2 days (balances accuracy with speed)</p>
             </div>
 
+            {/* ADD: Date Range Selection */}
+            <div className="border-t pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Custom Date Range for Testing
+                  </label>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Choose how far back to sync when testing (useful for initial setup)
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowDateRange(!showDateRange)}
+                  className={`text-sm px-3 py-1 rounded border transition-colors ${
+                    showDateRange 
+                      ? 'bg-blue-50 text-blue-700 border-blue-300' 
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {showDateRange ? 'Hide' : 'Show'} Date Range
+                </button>
+              </div>
+
+              {showDateRange && (
+                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Sync transactions from:
+                    </label>
+                    <input
+                      type="date"
+                      value={initialSyncDate}
+                      onChange={(e) => setInitialSyncDate(e.target.value)}
+                      min={getMinDate()}
+                      max={getMaxDate()}
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    <div>
+                      <strong>Date range:</strong> {new Date(initialSyncDate).toLocaleDateString('en-GB')} to {new Date(getMaxDate()).toLocaleDateString('en-GB')}
+                    </div>
+                    <div>
+                      <strong>Total days:</strong> {Math.ceil((new Date(getMaxDate()).getTime() - new Date(initialSyncDate).getTime()) / (1000 * 60 * 60 * 24))} days
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Action Buttons */}
             <div className="flex space-x-4">
               <button
@@ -230,6 +323,37 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
                 {saving ? 'Testing...' : 'Test Now'}
               </button>
             </div>
+
+            {/* ADD: Sync Results Display */}
+            {syncResults && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-blue-900 mb-2">Test Results</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-blue-700">Total Transactions:</span>
+                    <span className="ml-2 font-semibold text-blue-900">{syncResults.totalTransactions || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700">Successful:</span>
+                    <span className="ml-2 font-semibold text-green-700">{syncResults.successful || 0}</span>
+                  </div>
+                  {syncResults.dateRange && (
+                    <>
+                      <div>
+                        <span className="text-blue-700">Period:</span>
+                        <span className="ml-2 font-semibold text-blue-900">{syncResults.dateRange.daySpan || 0} days</span>
+                      </div>
+                      <div>
+                        <span className="text-blue-700">Duration:</span>
+                        <span className="ml-2 font-semibold text-blue-900">
+                          {syncResults.duration ? `${(syncResults.duration / 1000).toFixed(1)}s` : 'N/A'}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
