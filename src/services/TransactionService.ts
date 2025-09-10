@@ -1,56 +1,35 @@
 // services/TransactionService.ts
 import {
   EbayTransaction,
-  EbayReference,
   FreeAgentEntry,
   ProcessedTransactionData,
   TRANSACTION_TYPE_MAP,
   CATEGORY_MAP,
-  REFERENCE_FORMAT_MAP,
-  STATUS_NEEDING_INFO,
   DEBIT_TRANSACTION_TYPES,
-  REFERENCE_PRIORITY_ORDER
 } from '../types';
 
 export class TransactionService {
   /**
-   * CRITICAL: This function generates enhanced transaction descriptions
-   * using eBay's rich data. ALL logic must be preserved for accurate descriptions.
+   * SIMPLIFIED: Just for DISPLAY in the frontend UI
+   * The backend handles all FreeAgent formatting
    */
-  public generateEnhancedTransactionDescription(txn: EbayTransaction): string {
+  public generateDisplayDescription(txn: EbayTransaction): string {
     const {
       transactionType,
       transactionMemo,
-      references = [],
+      transactionId,
       salesRecordReference,
-      transactionStatus,
     } = txn;
 
-    let description = "";
-
-    // IMPORTANT: Check for meaningful memo first
+    // Simple display format for the UI only
     if (transactionMemo && transactionMemo !== "No description") {
-      description = transactionMemo;
-    } else {
-      description = `eBay ${this.formatTransactionType(transactionType)}`;
+      return transactionMemo;
     }
-
-    // IMPORTANT: Add meaningful reference if available
-    const meaningfulReference = this.getMeaningfulReference(
-      references,
-      salesRecordReference
-    );
-    if (meaningfulReference) {
-      description += ` - ${meaningfulReference}`;
-    }
-
-    // IMPORTANT: Add status info for specific transaction statuses
-    if (transactionStatus && this.needsStatusInfo(transactionStatus)) {
-      description += ` (${this.formatTransactionStatus(transactionStatus)})`;
-    }
-
-    // Ensure description doesn't exceed FreeAgent's 255 character limit
-    return description.substring(0, 255);
+    
+    const typeLabel = TRANSACTION_TYPE_MAP[transactionType] || transactionType;
+    const reference = salesRecordReference || transactionId || '';
+    
+    return reference ? `${typeLabel} - ${reference}` : `eBay ${typeLabel}`;
   }
 
   private formatTransactionType(transactionType: EbayTransaction['transactionType']): string {
@@ -58,57 +37,8 @@ export class TransactionService {
   }
 
   /**
-   * CRITICAL: This prioritizes references to show the most meaningful one.
-   * The priority order is essential for useful transaction descriptions.
-   */
-  private getMeaningfulReference(
-    references: EbayReference[] | undefined,
-    salesRecordReference: string | undefined
-  ): string | null {
-    // IMPORTANT: Fallback to salesRecordReference if no references array
-    if (!references || references.length === 0) {
-      return salesRecordReference && salesRecordReference !== "0"
-        ? `Ref: ${salesRecordReference}`
-        : null;
-    }
-
-    // CRITICAL: Sort by priority order - this order is intentional
-    const sortedRefs = references.sort((a, b) => {
-      const aIndex = REFERENCE_PRIORITY_ORDER.indexOf(a.referenceType as any);
-      const bIndex = REFERENCE_PRIORITY_ORDER.indexOf(b.referenceType as any);
-      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
-    });
-
-    const topRef = sortedRefs[0];
-    return this.formatReference(topRef.referenceType, topRef.referenceId);
-  }
-
-  private formatReference(
-    referenceType: EbayReference['referenceType'],
-    referenceId: string
-  ): string {
-    const formatter = REFERENCE_FORMAT_MAP[referenceType];
-    return formatter ? formatter(referenceId) : `${referenceType}: ${referenceId}`;
-  }
-
-  private needsStatusInfo(transactionStatus: string): boolean {
-    return STATUS_NEEDING_INFO.includes(transactionStatus as any);
-  }
-
-  private formatTransactionStatus(transactionStatus: string): string {
-    const statusMap: Record<string, string> = {
-      FUNDS_PROCESSING: "Processing",
-      FUNDS_ON_HOLD: "On Hold",
-      FUNDS_AVAILABLE_FOR_PAYOUT: "Ready for Payout",
-      PAYOUT_INITIATED: "Payout Initiated",
-      COMPLETED: "Completed",
-    };
-    return statusMap[transactionStatus] || transactionStatus;
-  }
-
-  /**
-   * CRITICAL: Process transactions for FreeAgent with proper debit/credit determination
-   * This logic ensures accurate accounting entries.
+   * SIMPLIFIED: Process transactions for display and CSV export
+   * Send RAW data to backend for FreeAgent formatting
    */
   public processTransactionsForFreeAgent(
     ebayTransactions: EbayTransaction[]
@@ -123,8 +53,11 @@ export class TransactionService {
       };
     }
 
-    console.log(`Processing ${ebayTransactions.length} transactions for FreeAgent...`);
+    console.log(`Processing ${ebayTransactions.length} transactions...`);
 
+    // IMPORTANT: Send RAW eBay data to backend
+    // Backend will handle all formatting for FreeAgent
+    // This is just for local display/preview
     const freeAgentEntries = ebayTransactions
       .map((txn) => {
         const originalAmount = parseFloat(txn.amount?.value?.toString() || '0');
@@ -134,18 +67,19 @@ export class TransactionService {
         return {
           dated_on: new Date(txn.transactionDate).toISOString().split("T")[0],
           amount: isDebit ? -displayAmount : displayAmount,
-          description: this.generateEnhancedTransactionDescription(txn).substring(0, 255),
-          reference: txn.transactionId
-            ? txn.transactionId.toString().substring(0, 50)
-            : undefined,
+          // Use simple display description - backend will format for FreeAgent
+          description: this.generateDisplayDescription(txn).substring(0, 255),
+          reference: txn.transactionId?.toString().substring(0, 50),
           category: this.determineTransactionCategory(txn),
           transactionType: isDebit ? "debit" as const : "credit" as const,
           isDebit: isDebit,
           originalAmount: originalAmount,
           displayAmount: displayAmount,
+          // IMPORTANT: Include raw transaction for backend processing
+          rawTransaction: txn,
         };
       })
-      .filter((txn) => txn.amount !== 0); // IMPORTANT: Filter out zero-amount transactions
+      .filter((txn) => txn.amount !== 0);
 
     const creditCount = freeAgentEntries.filter(e => e.transactionType === "credit").length;
     const debitCount = freeAgentEntries.filter(e => e.transactionType === "debit").length;
@@ -164,11 +98,9 @@ export class TransactionService {
   }
 
   /**
-   * CRITICAL: Determines if a transaction is a debit.
-   * This logic is crucial for accurate accounting.
+   * Determines if a transaction is a debit
    */
   private determineIfDebit(txn: EbayTransaction, amount: number): boolean {
-    // Multiple conditions for determining debit - ALL are important
     if (
       txn.bookingEntry === "DEBIT" ||
       DEBIT_TRANSACTION_TYPES.includes(txn.transactionType as any) ||
@@ -183,128 +115,35 @@ export class TransactionService {
     return CATEGORY_MAP[txn.transactionType as keyof typeof CATEGORY_MAP] || "Other";
   }
 
-/**
- * Export transactions to CSV with CORRECT FreeAgent format 
- * Format: Date,Amount,Description (3 columns - NOT 4!)
- * As per: https://support.freeagent.com/hc/en-gb/articles/115001222564-Format-a-CSV-file-to-upload-a-bank-statement
- */
-public exportToCsv(processedData: ProcessedTransactionData): void {
-  if (!processedData || !processedData.freeAgentEntries) return;
+  /**
+   * Export to CSV for local download (not for FreeAgent sync)
+   */
+  public exportToCsv(processedData: ProcessedTransactionData): void {
+    if (!processedData || !processedData.freeAgentEntries) return;
 
-  // Convert to FreeAgent CSV format (3 columns only!)
-  const csvRows = processedData.freeAgentEntries.map((entry) => {
-    // Convert ISO date (YYYY-MM-DD) to DD/MM/YYYY format preferred by FreeAgent
-    const dateParts = entry.dated_on.split('-');
-    const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
-    
-    // CRITICAL: FreeAgent uses SINGLE amount column with negative/positive values
-    // Positive = Money In (sales, receipts)
-    // Negative = Money Out (fees, payments, refunds)
-    const amount = entry.amount; // Keep original sign: negative for debits, positive for credits
-    
-    // Clean description - remove quotes and commas that could break CSV
-    const cleanDescription = entry.description
-      .replace(/"/g, '') // Remove quotes
-      .replace(/,/g, ';') // Replace commas with semicolons
-      .trim();
-    
-    // FreeAgent CSV format: Date,Amount,Description (3 columns)
-    return `${formattedDate},${amount.toFixed(2)},${cleanDescription}`;
-  });
-
-  // NO HEADER ROW for FreeAgent CSV uploads
-  const csvContent = csvRows.join("\n");
-
-  // Download the file
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `ebay-freeagent-statement-${new Date().toISOString().split("T")[0]}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-  
-  console.log(`✅ Exported ${csvRows.length} transactions to FreeAgent CSV format (3 columns)`);
-  console.log("Sample rows:", csvRows.slice(0, 3));
-}
-
-/**
- * ALTERNATIVE: Export with proper amount sign handling based on eBay transaction types
- */
-public exportEbayTransactionsToCsv(ebayTransactions: any[]): void {
-  if (!ebayTransactions || ebayTransactions.length === 0) return;
-
-  const csvRows = ebayTransactions.map((txn) => {
-    // Format date to DD/MM/YYYY
-    const transactionDate = new Date(txn.transactionDate || txn.dated_on);
-    const formattedDate = transactionDate.toLocaleDateString('en-GB'); // DD/MM/YYYY format
-    
-    // Handle amount with correct signs for FreeAgent
-    let amount = parseFloat(txn.amount || txn.displayAmount || 0);
-    
-    // Ensure correct signs based on eBay transaction types
-    if (txn.transactionType) {
-      const transactionType = txn.transactionType.toLowerCase();
+    const csvRows = processedData.freeAgentEntries.map((entry) => {
+      const dateParts = entry.dated_on.split('-');
+      const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+      const amount = entry.amount;
+      const cleanDescription = entry.description
+        .replace(/"/g, '')
+        .replace(/,/g, ';')
+        .trim();
       
-      // These should be negative (money out)
-      if (transactionType.includes('fee') || 
-          transactionType.includes('refund') || 
-          transactionType.includes('charge') ||
-          transactionType.includes('payout')) {
-        amount = -Math.abs(amount); // Force negative
-      } 
-      // These should be positive (money in)
-      else if (transactionType.includes('sale') || 
-               transactionType.includes('payment') ||
-               transactionType.includes('credit')) {
-        amount = Math.abs(amount); // Force positive
-      }
-    }
-    
-    // Build description without commas
-    const description = (txn.description || this.generateEnhancedTransactionDescription(txn) || 'eBay Transaction')
-      .replace(/"/g, '') // Remove quotes
-      .replace(/,/g, ';') // Replace commas with semicolons
-      .trim();
-    
-    // FreeAgent format: Date,Amount,Description
-    return `${formattedDate},${amount.toFixed(2)},${description}`;
-  });
+      return `${formattedDate},${amount.toFixed(2)},${cleanDescription}`;
+    });
 
-  // No header row needed
-  const csvContent = csvRows.join("\n");
-  
-  // Download
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `ebay-freeagent-${new Date().toISOString().split("T")[0]}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-/**
- * DEBUGGING: Preview what the CSV will look like
- */
-public previewCsvFormat(processedData: ProcessedTransactionData): string[] {
-  if (!processedData?.freeAgentEntries) return [];
-
-  const preview: string[] = [];
-  
-  processedData.freeAgentEntries.slice(0, 5).forEach((entry) => {
-    const dateParts = entry.dated_on.split('-');
-    const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
-    const amount = entry.amount.toFixed(2);
-    const description = entry.description.replace(/"/g, '').replace(/,/g, ';');
+    const csvContent = csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `ebay-transactions-${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     
-    preview.push(`${formattedDate},${amount},${description}`);
-  });
-  
-  return preview;
+    console.log(`✅ Exported ${csvRows.length} transactions to CSV`);
   }
 }
