@@ -70,7 +70,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
 
   const getMinDate = () => {
     const minDate = new Date();
-    minDate.setDate(minDate.getDate() - 180); // 180 days max history
+    minDate.setDate(minDate.getDate() - 730); // 2 years (730 days) max history
     return minDate.toISOString().split('T')[0];
   };
 
