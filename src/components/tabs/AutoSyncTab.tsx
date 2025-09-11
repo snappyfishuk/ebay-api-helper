@@ -9,6 +9,22 @@ interface AutoSyncTabProps {
   isLoading: boolean;
 }
 
+// Add interface for transfer settings
+interface TransferSettings {
+  autoTransferEnabled: boolean;
+  mainBankAccount: string;
+  mainBankAccountName: string;
+  minimumAmount: number;
+}
+
+// Add interface for bank account
+interface BankAccount {
+  id: string;
+  name: string;
+  type: string;
+  url: string;
+}
+
 export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
   connections,
   setupStatus,
@@ -20,7 +36,17 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
   const [lagDays, setLagDays] = useState(2);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   
-  // ADD: Date range state for initial sync
+  // ADD: Transfer settings state
+  const [transferSettings, setTransferSettings] = useState<TransferSettings>({
+    autoTransferEnabled: false,
+    mainBankAccount: '',
+    mainBankAccountName: '',
+    minimumAmount: 100
+  });
+  const [availableBankAccounts, setAvailableBankAccounts] = useState<BankAccount[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  
+  // Date range state for initial sync
   const [initialSyncDate, setInitialSyncDate] = useState('');
   const [showDateRange, setShowDateRange] = useState(false);
   const [syncResults, setSyncResults] = useState<any>(null);
@@ -48,7 +74,15 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     }
   }, [user]);
 
-  // ADD: Initialize date to 30 days ago
+  // ADD: Load transfer settings and bank accounts
+  useEffect(() => {
+    if (connections?.freeagent && autoSyncEnabled) {
+      loadTransferSettings();
+      loadBankAccounts();
+    }
+  }, [connections?.freeagent, autoSyncEnabled]);
+
+  // Initialize date to 30 days ago
   useEffect(() => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -61,7 +95,75 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     setMsgText(text);
   };
 
-  // ADD: Calculate date range limits
+  // ADD: Load transfer settings
+  const loadTransferSettings = async () => {
+    try {
+      const response = await makeAuthenticatedRequest('/autosync/transfer-settings', {
+        method: 'GET'
+      });
+      
+      if (response.status === 'success' && response.data) {
+        setTransferSettings(response.data);
+      }
+    } catch (error) {
+      console.error('Error loading transfer settings:', error);
+    }
+  };
+
+  // ADD: Load available bank accounts
+  const loadBankAccounts = async () => {
+    setLoadingAccounts(true);
+    try {
+      const response = await makeAuthenticatedRequest('/freeagent/bank-accounts', {
+        method: 'GET'
+      });
+      
+      if (response.status === 'success' && response.data?.accounts) {
+        setAvailableBankAccounts(response.data.accounts);
+      }
+    } catch (error) {
+      console.error('Error loading bank accounts:', error);
+      showMsg('error', 'Failed to load bank accounts');
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
+
+  // ADD: Save transfer settings
+  const saveTransferSettings = async () => {
+    setSaving(true);
+    try {
+      const response = await makeAuthenticatedRequest('/autosync/transfer-settings', {
+        method: 'PUT',
+        body: JSON.stringify(transferSettings)
+      });
+      
+      if (response.status === 'success') {
+        showMsg('success', 'Transfer settings saved successfully!');
+      } else {
+        showMsg('error', 'Failed to save transfer settings');
+      }
+    } catch (error) {
+      console.error('Error saving transfer settings:', error);
+      showMsg('error', 'Network error - please try again');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ADD: Handle bank account selection
+  const handleBankAccountChange = (accountUrl: string) => {
+    const selectedAccount = availableBankAccounts.find(acc => acc.url === accountUrl);
+    if (selectedAccount) {
+      setTransferSettings(prev => ({
+        ...prev,
+        mainBankAccount: accountUrl,
+        mainBankAccountName: selectedAccount.name
+      }));
+    }
+  };
+
+  // Calculate date range limits
   const getMaxDate = () => {
     const maxDate = new Date();
     maxDate.setDate(maxDate.getDate() - lagDays);
@@ -133,7 +235,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     }
   };
 
-  // UPDATED: Test sync function with date range support
+  // Test sync function with date range support
   const testAutoSync = async () => {
     setSaving(true);
     setSyncResults(null);
@@ -256,7 +358,104 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
               <p className="text-xs text-gray-500 mt-2">Recommended: 2 days (balances accuracy with speed)</p>
             </div>
 
-            {/* ADD: Date Range Selection */}
+            {/* ADD: Transfer Settings Section */}
+            {connections?.freeagent && (
+              <div className="border-t pt-6">
+                <div className="mb-4">
+                  <h4 className="text-md font-semibold text-gray-900 mb-2">Auto-Transfer Settings</h4>
+                  <p className="text-sm text-gray-600">
+                    Automatically create transfer transactions when eBay payouts are deposited to your main bank account
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Enable Auto-Transfer Toggle */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Enable Auto-Transfer</label>
+                      <p className="text-xs text-gray-500">Create matching transfers when eBay deposits are detected</p>
+                    </div>
+                    <button
+                      onClick={() => setTransferSettings(prev => ({ ...prev, autoTransferEnabled: !prev.autoTransferEnabled }))}
+                      disabled={saving}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        transferSettings.autoTransferEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          transferSettings.autoTransferEnabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {transferSettings.autoTransferEnabled && (
+                    <div className="space-y-4 bg-gray-50 rounded-lg p-4">
+                      {/* Main Bank Account Selection */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Main Bank Account
+                        </label>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Select the bank account where eBay deposits your payouts
+                        </p>
+                        {loadingAccounts ? (
+                          <div className="text-sm text-gray-500">Loading bank accounts...</div>
+                        ) : (
+                          <select
+                            value={transferSettings.mainBankAccount}
+                            onChange={(e) => handleBankAccountChange(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          >
+                            <option value="">Select a bank account...</option>
+                            {availableBankAccounts.map((account) => (
+                              <option key={account.url} value={account.url}>
+                                {account.name} ({account.type})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+
+                      {/* Minimum Amount Setting */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Minimum Transfer Amount (£)
+                        </label>
+                        <p className="text-xs text-gray-500 mb-3">
+                          Only create transfers for amounts above this threshold
+                        </p>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={transferSettings.minimumAmount}
+                          onChange={(e) => setTransferSettings(prev => ({ 
+                            ...prev, 
+                            minimumAmount: parseFloat(e.target.value) || 0 
+                          }))}
+                          className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+
+                      {/* Transfer Settings Save Button */}
+                      <div className="pt-2">
+                        <button
+                          onClick={saveTransferSettings}
+                          disabled={saving || !transferSettings.mainBankAccount}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {saving ? 'Saving...' : 'Save Transfer Settings'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Date Range Selection */}
             <div className="border-t pt-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -324,7 +523,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
               </button>
             </div>
 
-            {/* ADD: Sync Results Display */}
+            {/* Sync Results Display */}
             {syncResults && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-blue-900 mb-2">Test Results</h4>
