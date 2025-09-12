@@ -1,5 +1,5 @@
 // EbayApiAccountingHelper.tsx - Clean & Modular
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 // NEW (works without index.ts):
 import { useEbayConnection } from "./hooks/useEbayConnection";
 import { useFreeAgentConnection } from "./hooks/useFreeAgentConnection";
@@ -23,6 +23,7 @@ type NavigationId = 'dashboard' | 'autosync' | 'manual' | 'history' | 'settings'
 
 const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user }) => {
   const [activeNav, setActiveNav] = useState<NavigationId>("dashboard");
+  const hasInitialized = useRef(false);
   
   // Custom hooks
   const ebayConnection = useEbayConnection();
@@ -42,7 +43,9 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
 
 // Initialize connections on mount - FIXED to prevent infinite API calls
   useEffect(() => {
-    if (user) {
+    if (user && !hasInitialized.current) {
+      hasInitialized.current = true;
+      
       // Only call these once when user is available
       ebayConnection.checkConnection();
       freeagentConnection.checkConnection();
@@ -56,16 +59,15 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
         ebayUserId: user?.ebayConnection?.userId
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]); // Only depend on user - removes the infinite loop
+  }, [user?.id]); // FIXED: Only depend on user.id
 
-  // ✅ NEW: Handle FreeAgent OAuth callback and trigger eBay account check
+  // Handle FreeAgent OAuth callback and trigger eBay account check
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     
     // Handle FreeAgent connection success
     if (urlParams.get('freeagent_connected') === 'true') {
-      console.log("✅ FreeAgent connected via URL parameter!");
+      console.log("FreeAgent connected via URL parameter!");
       
       // Trigger the connection check that will then check eBay account status
       freeagentConnection.checkConnection();
@@ -75,10 +77,10 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
     }
   }, [freeagentConnection]);
 
-  // ✅ FIXED: Use correct property name from SetupStatus type
+  // Use correct property name from SetupStatus type
   useEffect(() => {
     if (!setupStatus.ebayAccountReady && freeagentConnection.connection.isConnected) {
-      console.log("⚠️ eBay account needed - user should create one");
+      console.log("eBay account needed - user should create one");
       // The existing UI will show the bank account setup in ConnectionStatusCards
     }
   }, [setupStatus.ebayAccountReady, freeagentConnection.connection.isConnected]);
