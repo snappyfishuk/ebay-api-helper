@@ -17,12 +17,17 @@ interface TransferSettings {
   minimumAmount: number;
 }
 
-// Add interface for bank account
+// Add interface for bank account (updated to match API response)
 interface BankAccount {
   id: string;
   name: string;
   type: string;
-  url: string;
+  currency: string;
+  openingBalance: string;
+  currentBalance: string;
+  accountNumber?: string;
+  sortCode?: string;
+  apiUrl: string; // This is the field we need for selection
 }
 
 export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
@@ -55,6 +60,12 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
   const [msgText, setMsgText] = useState('');
   const [msgType, setMsgType] = useState('');
 
+  // Helper to show messages (memoized to prevent dependency issues)
+  const showMsg = useCallback((type: string, text: string) => {
+    setMsgType(type);
+    setMsgText(text);
+  }, []);
+
   // Auto-clear messages after 5 seconds
   useEffect(() => {
     if (msgText) {
@@ -74,29 +85,8 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     }
   }, [user]);
 
-  // ADD: Load transfer settings and bank accounts
-  useEffect(() => {
-    if (connections?.freeagent && autoSyncEnabled) {
-      loadTransferSettings();
-      loadBankAccounts();
-    }
-  }, [connections?.freeagent, autoSyncEnabled]);
-
-  // Initialize date to 30 days ago
-  useEffect(() => {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    setInitialSyncDate(thirtyDaysAgo.toISOString().split('T')[0]);
-  }, []);
-
-  // Helper to show messages
-  const showMsg = (type: string, text: string) => {
-    setMsgType(type);
-    setMsgText(text);
-  };
-
-  // ADD: Load transfer settings
-  const loadTransferSettings = async () => {
+  // ADD: Load transfer settings (memoized) with 404/500 handling
+  const loadTransferSettings = useCallback(async () => {
     try {
       const response = await makeAuthenticatedRequest('/autosync/transfer-settings', {
         method: 'GET'
@@ -105,29 +95,66 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
       if (response.status === 'success' && response.data) {
         setTransferSettings(response.data);
       }
-    } catch (error) {
-      console.error('Error loading transfer settings:', error);
+    } catch (error: any) {
+      // Handle missing endpoint gracefully (500/404 errors)
+      if (error.message.includes('500') || error.message.includes('404')) {
+        console.log('Transfer settings endpoint not implemented yet - using defaults');
+        // Use default settings silently
+        setTransferSettings(prev => ({ ...prev }));
+      } else {
+        console.error('Error loading transfer settings:', error);
+      }
     }
-  };
+  }, []);
 
-  // ADD: Load available bank accounts
-  const loadBankAccounts = async () => {
+  // ADD: Load available bank accounts with better error handling (memoized with correct dependencies)
+  const loadBankAccounts = useCallback(async () => {
     setLoadingAccounts(true);
     try {
+      console.log('Loading FreeAgent bank accounts...');
       const response = await makeAuthenticatedRequest('/freeagent/bank-accounts', {
         method: 'GET'
       });
       
-      if (response.status === 'success' && response.data?.accounts) {
-        setAvailableBankAccounts(response.data.accounts);
+      console.log('Bank accounts response:', response);
+      
+      if (response.status === 'success') {
+        // Check different possible response structures - UPDATED for correct API structure
+        const accounts = response.data?.bankAccounts || response.data?.accounts || response.accounts || response.data || [];
+        console.log('Found accounts:', accounts);
+        setAvailableBankAccounts(accounts);
+        
+        if (accounts.length === 0) {
+          showMsg('info', 'No bank accounts found in FreeAgent. Please add bank accounts in FreeAgent first.');
+        } else {
+          showMsg('success', `Loaded ${accounts.length} bank accounts successfully!`);
+        }
+      } else {
+        console.error('Failed to load bank accounts:', response);
+        showMsg('error', 'Failed to load bank accounts: ' + (response.message || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error loading bank accounts:', error);
-      showMsg('error', 'Failed to load bank accounts');
+      showMsg('error', 'Network error loading bank accounts - please try again');
     } finally {
       setLoadingAccounts(false);
     }
-  };
+  }, [showMsg]);
+
+  // ADD: Load transfer settings and bank accounts (with proper dependencies)
+  useEffect(() => {
+    if (connections?.freeagent && autoSyncEnabled) {
+      loadTransferSettings();
+      loadBankAccounts();
+    }
+  }, [connections?.freeagent, autoSyncEnabled, loadTransferSettings, loadBankAccounts]);
+
+  // Initialize date to 30 days ago
+  useEffect(() => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    setInitialSyncDate(thirtyDaysAgo.toISOString().split('T')[0]);
+  }, []);
 
   // ADD: Save transfer settings with missing endpoint handling
   const saveTransferSettings = async () => {
@@ -143,7 +170,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
       } else {
         showMsg('error', 'Failed to save transfer settings');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving transfer settings:', error);
       // Handle missing endpoint
       if (error.message.includes('500') || error.message.includes('404')) {
@@ -156,9 +183,9 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     }
   };
 
-  // ADD: Handle bank account selection
+  // ADD: Handle bank account selection (updated for correct data structure)
   const handleBankAccountChange = (accountUrl: string) => {
-    const selectedAccount = availableBankAccounts.find(acc => acc.url === accountUrl);
+    const selectedAccount = availableBankAccounts.find(acc => acc.apiUrl === accountUrl);
     if (selectedAccount) {
       setTransferSettings(prev => ({
         ...prev,
@@ -423,29 +450,21 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
                         )}
                       </div>
 
-                      {/* Minimum Amount Setting */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Minimum Transfer Amount (£)
-                        </label>
-                        <p className="text-xs text-gray-500 mb-3">
-                          Only create transfers for amounts above this threshold
-                        </p>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={transferSettings.minimumAmount}
-                          onChange={(e) => setTransferSettings(prev => ({ 
-                            ...prev, 
-                            minimumAmount: parseFloat(e.target.value) || 0 
-                          }))}
-                          className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
+                      {/* Debug info and save button */}
+                      <div className="pt-4 space-y-3">
+                        {/* Debug info - temporary */}
+                        {availableBankAccounts.length === 0 && !loadingAccounts && (
+                          <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded p-3">
+                            No bank accounts found. <button 
+                              onClick={loadBankAccounts}
+                              className="underline hover:no-underline"
+                            >
+                              Retry loading accounts
+                            </button>
+                          </div>
+                        )}
 
-                      {/* Transfer Settings Save Button */}
-                      <div className="pt-2">
+                        {/* Transfer Settings Save Button */}
                         <button
                           onClick={saveTransferSettings}
                           disabled={saving || !transferSettings.mainBankAccount}
