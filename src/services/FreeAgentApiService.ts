@@ -102,15 +102,20 @@ export class FreeAgentApiService {
   /**
    * Create new eBay account in FreeAgent
    * IMPORTANT: Only creates if no existing eBay accounts found
+   * FIXED: Now includes required confirmCreate parameter
    */
-  async createEbayAccount(): Promise<ApiResponse<{
+  async createEbayAccount(accountName: string = "eBay UK seller Account"): Promise<ApiResponse<{
     created: boolean;
     account?: FreeAgentBankAccount;
   }>> {
     console.log("🏦 Creating new eBay account in FreeAgent...");
 
     const data = await makeAuthenticatedRequest('/freeagent/create-ebay-account', {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify({
+        confirmCreate: "true", // ← FIXED: This was missing! Required by backend validation
+        accountName: accountName
+      })
     });
 
     console.log("📦 Create eBay account response:", data);

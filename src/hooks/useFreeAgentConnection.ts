@@ -17,7 +17,7 @@ interface UseFreeAgentConnectionReturn {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   checkEbayAccountStatus: () => Promise<void>;
-  createEbayAccount: () => Promise<void>;
+  createEbayAccount: (accountName?: string) => Promise<void>; // UPDATED: Now accepts accountName
   selectExistingEbayAccount: (accountUrl: string) => Promise<void>;
 }
 
@@ -71,14 +71,16 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     }
   }, []);
 
-  const createEbayAccount = useCallback(async () => {
+  // UPDATED: Now accepts accountName parameter and passes it to API
+  const createEbayAccount = useCallback(async (accountName?: string) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      const response = await apiService.createEbayAccount();
+      const response = await apiService.createEbayAccount(accountName || "eBay UK seller Account");
       
       if (response.status === 'success') {
+        console.log("✅ eBay account created successfully!");
         // Refresh the eBay account status
         await checkEbayAccountStatus();
       } else {
