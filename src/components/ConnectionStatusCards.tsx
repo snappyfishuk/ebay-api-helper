@@ -1,4 +1,4 @@
-// components/ConnectionStatusCards.tsx - WITH WORKING FUNCTIONALITY RESTORED
+// components/ConnectionStatusCards.tsx - FIXED URL PROPERTY
 import React, { useState } from 'react';
 
 interface ConnectionStatusCardsProps {
@@ -17,7 +17,12 @@ export const ConnectionStatusCards: React.FC<ConnectionStatusCardsProps> = ({
   const [showAccountSelector, setShowAccountSelector] = useState(false);
   const [showTransferSelector, setShowTransferSelector] = useState(false);
 
-  const handleSelectEbayAccount = async (accountUrl: string) => {
+  // FIXED: Use the correct URL property from account data
+  const handleSelectEbayAccount = async (account: any) => {
+    // Use apiUrl or id as the URL for the backend call
+    const accountUrl = account.apiUrl || account.id;
+    console.log('🔄 Selecting eBay account:', account.name, 'URL:', accountUrl);
+    
     await freeagentConnection.selectExistingEbayAccount(accountUrl);
     setShowAccountSelector(false);
   };
@@ -26,8 +31,12 @@ export const ConnectionStatusCards: React.FC<ConnectionStatusCardsProps> = ({
     await freeagentConnection.createEbayAccount();
   };
 
-  const handleSelectTransferDestination = async (accountUrl: string, accountName: string) => {
-    await freeagentConnection.selectTransferDestination(accountUrl, accountName);
+  // FIXED: Use the correct URL property for transfer destinations
+  const handleSelectTransferDestination = async (account: any) => {
+    const accountUrl = account.apiUrl || account.id;
+    console.log('🔄 Selecting transfer destination:', account.name, 'URL:', accountUrl);
+    
+    await freeagentConnection.selectTransferDestination(accountUrl, account.name);
     setShowTransferSelector(false);
   };
 
@@ -141,7 +150,7 @@ export const ConnectionStatusCards: React.FC<ConnectionStatusCardsProps> = ({
                       {freeagentConnection.availableEbayAccounts.map((account: any) => (
                         <button
                           key={account.id}
-                          onClick={() => handleSelectEbayAccount(account.url)}
+                          onClick={() => handleSelectEbayAccount(account)}
                           disabled={freeagentConnection.isLoading}
                           className="w-full px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors disabled:opacity-50 truncate"
                           title={account.name}
@@ -171,7 +180,7 @@ export const ConnectionStatusCards: React.FC<ConnectionStatusCardsProps> = ({
           )}
         </div>
 
-        {/* Transfer Destination Card - RESTORED WITH WORKING FUNCTIONALITY */}
+        {/* Transfer Destination Card */}
         <div className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 rounded-lg p-4 text-center">
           <div className={`w-4 h-4 rounded-full mx-auto mb-2 ${freeagentConnection.transferDestination?.configured ? 'bg-green-600' : 'bg-gray-300'}`}></div>
           <div className="text-sm font-bold text-purple-900 mb-1">Transfer Destination</div>
@@ -195,7 +204,7 @@ export const ConnectionStatusCards: React.FC<ConnectionStatusCardsProps> = ({
                 .map((account: any) => (
                 <button
                   key={account.id}
-                  onClick={() => handleSelectTransferDestination(account.url, account.name)}
+                  onClick={() => handleSelectTransferDestination(account)}
                   disabled={freeagentConnection.isLoading}
                   className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 mb-1 disabled:opacity-50"
                 >
