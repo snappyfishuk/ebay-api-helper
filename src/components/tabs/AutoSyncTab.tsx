@@ -415,7 +415,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
                           >
                             <option value="">Select a bank account...</option>
                             {availableBankAccounts.map((account) => (
-                              <option key={account.url} value={account.url}>
+                              <option key={account.apiUrl} value={account.apiUrl}>
                                 {account.name} ({account.type})
                               </option>
                             ))}
@@ -625,4 +625,4 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
       </div>
     </div>
   );
-}; 
+};
