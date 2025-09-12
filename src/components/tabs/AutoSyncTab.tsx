@@ -36,12 +36,12 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
   const [lagDays, setLagDays] = useState(2);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   
-  // ADD: Transfer settings state
+  // ADD: Transfer settings state (removed minimumAmount)
   const [transferSettings, setTransferSettings] = useState<TransferSettings>({
     autoTransferEnabled: false,
     mainBankAccount: '',
     mainBankAccountName: '',
-    minimumAmount: 100
+    minimumAmount: 0 // Keep for API compatibility but hide from UI
   });
   const [availableBankAccounts, setAvailableBankAccounts] = useState<BankAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
