@@ -625,4 +625,4 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
       </div>
     </div>
   );
-};
+}; 
