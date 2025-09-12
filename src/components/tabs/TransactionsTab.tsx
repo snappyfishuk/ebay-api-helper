@@ -69,7 +69,7 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({ transactions }
               <tbody className="bg-white divide-y divide-gray-200">
                 {transactions.map((txn, index) => {
                   const isDebit = determineIfDebit(txn);
-                  const description = transactionService.generateEnhancedTransactionDescription(txn);
+                  const description = transactionService.generateDisplayDescription(txn);
                   
                   return (
                     <tr key={index}>
