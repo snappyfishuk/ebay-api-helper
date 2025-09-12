@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { makeAuthenticatedRequest } from '../../utils/apiUtils';
 
 interface AutoSyncTabProps {
