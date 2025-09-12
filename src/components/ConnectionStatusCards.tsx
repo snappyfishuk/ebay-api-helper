@@ -1,5 +1,5 @@
 // components/ConnectionStatusCards.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { makeAuthenticatedRequest } from '../utils/apiUtils';
 
 interface ConnectionStatusCardsProps {
@@ -253,8 +253,7 @@ export const ConnectionStatusCards: React.FC<ConnectionStatusCardsProps> = ({
                       <div className="flex-1">
                         <div className="font-medium text-sm">{account.name}</div>
                         <div className="text-xs text-gray-500">
-                          {account.type} • {account.currency} • Balance: £{account.currentBalance?.toFixed(2) || '0.00'}
-                        </div>
+                          {account.type} • {account.currency} • Balance: £{(account.currentBalance || 0).toFixed(2)}                        </div>
                       </div>
                     </label>
                   ))}
