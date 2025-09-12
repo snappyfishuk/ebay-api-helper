@@ -7,18 +7,28 @@ import {
 } from '../types';
 import { FreeAgentApiService } from '../services/FreeAgentApiService';
 
+interface TransferDestination {
+  configured: boolean;
+  accountUrl?: string;
+  accountName?: string;
+}
+
 interface UseFreeAgentConnectionReturn {
   connection: FreeAgentConnection;
   ebayAccountStatus: EbayAccountStatus;
   availableEbayAccounts: FreeAgentBankAccount[];
+  availableBankAccounts: FreeAgentBankAccount[]; // ✅ NEW: All bank accounts for transfer destination
+  transferDestination: TransferDestination; // ✅ NEW: Transfer destination state
   isLoading: boolean;
   error: string | null;
   checkConnection: () => Promise<void>;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   checkEbayAccountStatus: () => Promise<void>;
-  createEbayAccount: (accountName?: string) => Promise<void>; // UPDATED: Now accepts accountName
+  createEbayAccount: (accountName?: string) => Promise<void>;
   selectExistingEbayAccount: (accountUrl: string) => Promise<void>;
+  selectTransferDestination: (accountUrl: string, accountName: string) => Promise<void>; // ✅ NEW
+  loadBankAccounts: () => Promise<void>; // ✅ NEW
 }
 
 export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
@@ -32,10 +42,13 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     bankAccount: null,
   });
   const [availableEbayAccounts, setAvailableEbayAccounts] = useState<FreeAgentBankAccount[]>([]);
+  const [availableBankAccounts, setAvailableBankAccounts] = useState<FreeAgentBankAccount[]>([]); // ✅ NEW
+  const [transferDestination, setTransferDestination] = useState<TransferDestination>({ // ✅ NEW
+    configured: false,
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // No constructor parameters needed - service now uses apiUtils internally
   const apiService = new FreeAgentApiService();
 
   const checkConnection = useCallback(async () => {
@@ -68,6 +81,20 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     } catch (err) {
       console.error('Error checking eBay account status:', err);
       setError('Failed to check eBay account status');
+    }
+  }, []);
+
+  // ✅ NEW: Load all bank accounts for transfer destination selection
+  const loadBankAccounts = useCallback(async () => {
+    try {
+      const response = await apiService.getBankAccounts();
+      if (response.status === 'success' && response.data.bankAccounts) {
+        setAvailableBankAccounts(response.data.bankAccounts);
+        console.log("✅ Loaded bank accounts:", response.data.bankAccounts.length);
+      }
+    } catch (err) {
+      console.error('Error loading bank accounts:', err);
+      setError('Failed to load bank accounts');
     }
   }, []);
 
@@ -110,6 +137,7 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
           bankAccount: selectedAccount,
           needsSetup: false,
         }));
+        console.log("✅ Selected eBay account:", selectedAccount.name);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error selecting eBay account';
@@ -119,6 +147,33 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
       setIsLoading(false);
     }
   }, [availableEbayAccounts]);
+
+  // ✅ NEW: Select transfer destination account
+  const selectTransferDestination = useCallback(async (accountUrl: string, accountName: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Update transfer destination state
+      setTransferDestination({
+        configured: true,
+        accountUrl,
+        accountName,
+      });
+      
+      console.log("✅ Selected transfer destination:", accountName);
+      
+      // TODO: You may want to save this to the backend/user settings
+      // await apiService.saveTransferDestination(accountUrl, accountName);
+      
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error selecting transfer destination';
+      console.error('Select transfer destination error:', err);
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const connect = useCallback(async () => {
     try {
@@ -153,23 +208,28 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
         bankAccount: null,
       });
       setAvailableEbayAccounts([]);
+      setAvailableBankAccounts([]); // ✅ NEW: Clear bank accounts
+      setTransferDestination({ configured: false }); // ✅ NEW: Reset transfer destination
     } catch (err) {
       console.error('FreeAgent disconnect error:', err);
       setError('Error disconnecting from FreeAgent');
     }
   }, []);
 
-  // Auto-check eBay account status when FreeAgent connects
+  // Auto-load data when FreeAgent connects
   useEffect(() => {
     if (connection.isConnected) {
       checkEbayAccountStatus();
+      loadBankAccounts(); // ✅ NEW: Load bank accounts when connected
     }
-  }, [connection.isConnected, checkEbayAccountStatus]);
+  }, [connection.isConnected, checkEbayAccountStatus, loadBankAccounts]);
 
   return {
     connection,
     ebayAccountStatus,
     availableEbayAccounts,
+    availableBankAccounts, // ✅ NEW
+    transferDestination, // ✅ NEW
     isLoading,
     error,
     checkConnection,
@@ -178,5 +238,7 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     checkEbayAccountStatus,
     createEbayAccount,
     selectExistingEbayAccount,
+    selectTransferDestination, // ✅ NEW
+    loadBankAccounts, // ✅ NEW
   };
 };

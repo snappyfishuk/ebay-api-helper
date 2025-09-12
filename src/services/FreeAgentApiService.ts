@@ -124,10 +124,36 @@ export class FreeAgentApiService {
 
   /**
    * Get available bank accounts from FreeAgent
+   * ✅ FIXED: Now properly implemented to fetch ALL bank accounts
    */
   async getBankAccounts(): Promise<ApiResponse<{ bankAccounts: FreeAgentBankAccount[] }>> {
-    const data = await makeAuthenticatedRequest('/freeagent/bank-accounts');
-    return data;
+    console.log("🏦 Fetching all bank accounts from FreeAgent...");
+    
+    try {
+      const data = await makeAuthenticatedRequest('/freeagent/bank-accounts');
+      
+      console.log("📦 Bank accounts response:", data);
+      
+      if (data.status === 'success') {
+        return data;
+      } else {
+        throw new Error(data.message || 'Failed to fetch bank accounts');
+      }
+    } catch (error: any) {
+      console.error("❌ Failed to fetch bank accounts:", error);
+      
+      let errorMessage = "Failed to fetch bank accounts";
+      
+      if (error.message) {
+        if (error.message.includes("unauthorized") || error.message.includes("401")) {
+          errorMessage = "FreeAgent session expired. Please reconnect your FreeAgent account.";
+        } else {
+          errorMessage = error.message || "Unknown error fetching bank accounts";
+        }
+      }
+
+      throw new Error(errorMessage);
+    }
   }
 
   /**

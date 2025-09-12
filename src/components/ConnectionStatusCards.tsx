@@ -15,6 +15,7 @@ export const ConnectionStatusCards: React.FC<ConnectionStatusCardsProps> = ({
   ebayConnection
 }) => {
   const [showAccountSelector, setShowAccountSelector] = useState(false);
+  const [showTransferSelector, setShowTransferSelector] = useState(false);
 
   const handleSelectEbayAccount = async (accountUrl: string) => {
     await freeagentConnection.selectExistingEbayAccount(accountUrl);
@@ -23,6 +24,11 @@ export const ConnectionStatusCards: React.FC<ConnectionStatusCardsProps> = ({
 
   const handleCreateEbayAccount = async () => {
     await freeagentConnection.createEbayAccount();
+  };
+
+  const handleSelectTransferDestination = async (accountUrl: string, accountName: string) => {
+    await freeagentConnection.selectTransferDestination(accountUrl, accountName);
+    setShowTransferSelector(false);
   };
 
   return (
