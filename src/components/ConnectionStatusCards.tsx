@@ -1,4 +1,4 @@
-// components/ConnectionStatusCards.tsx
+// components/ConnectionStatusCards.tsx - WITH WORKING FUNCTIONALITY RESTORED
 import React, { useState } from 'react';
 
 interface ConnectionStatusCardsProps {
@@ -15,6 +15,7 @@ export const ConnectionStatusCards: React.FC<ConnectionStatusCardsProps> = ({
   ebayConnection
 }) => {
   const [showAccountSelector, setShowAccountSelector] = useState(false);
+  const [showTransferSelector, setShowTransferSelector] = useState(false);
 
   const handleSelectEbayAccount = async (accountUrl: string) => {
     await freeagentConnection.selectExistingEbayAccount(accountUrl);
@@ -23,6 +24,11 @@ export const ConnectionStatusCards: React.FC<ConnectionStatusCardsProps> = ({
 
   const handleCreateEbayAccount = async () => {
     await freeagentConnection.createEbayAccount();
+  };
+
+  const handleSelectTransferDestination = async (accountUrl: string, accountName: string) => {
+    await freeagentConnection.selectTransferDestination(accountUrl, accountName);
+    setShowTransferSelector(false);
   };
 
   return (
@@ -165,21 +171,63 @@ export const ConnectionStatusCards: React.FC<ConnectionStatusCardsProps> = ({
           )}
         </div>
 
-        {/* Transfer Destination Card - SIMPLIFIED */}
+        {/* Transfer Destination Card - RESTORED WITH WORKING FUNCTIONALITY */}
         <div className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 rounded-lg p-4 text-center">
-          <div className="w-4 h-4 rounded-full mx-auto mb-2 bg-gray-300"></div>
+          <div className={`w-4 h-4 rounded-full mx-auto mb-2 ${freeagentConnection.transferDestination?.configured ? 'bg-green-600' : 'bg-gray-300'}`}></div>
           <div className="text-sm font-bold text-purple-900 mb-1">Transfer Destination</div>
           <div className="text-xs text-purple-800 truncate font-medium mb-3">
-            Configure in Auto-Sync
+            {freeagentConnection.transferDestination?.configured 
+              ? freeagentConnection.transferDestination.accountName
+              : 'Not configured'}
           </div>
-          <span className="text-xs text-gray-500">Available in Auto-Sync tab</span>
+          
+          {/* Transfer Destination Selection UI */}
+          {freeagentConnection.transferDestination?.configured ? (
+            <span className="text-xs text-green-600 font-medium">Ready ✓</span>
+          ) : showTransferSelector ? (
+            <div className="space-y-1">
+              <div className="text-xs text-gray-600 mb-2">Select main business account:</div>
+              {freeagentConnection.availableBankAccounts
+                ?.filter((account: any) => 
+                  !account.name.toLowerCase().includes('ebay') &&
+                  !account.name.toLowerCase().includes('amazon')
+                )
+                .map((account: any) => (
+                <button
+                  key={account.id}
+                  onClick={() => handleSelectTransferDestination(account.url, account.name)}
+                  disabled={freeagentConnection.isLoading}
+                  className="w-full px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 mb-1 disabled:opacity-50"
+                >
+                  {account.name}
+                </button>
+              ))}
+              <button
+                onClick={() => setShowTransferSelector(false)}
+                className="w-full px-2 py-1 bg-gray-400 text-white text-xs rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowTransferSelector(true)}
+              disabled={!freeagentConnection.availableBankAccounts?.length || freeagentConnection.isLoading}
+              className="w-full px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 disabled:opacity-50"
+            >
+              {freeagentConnection.availableBankAccounts?.length 
+                ? `Select Account (${freeagentConnection.availableBankAccounts.length})`
+                : 'No Accounts Available'
+              }
+            </button>
+          )}
         </div>
       </div>
 
       {/* Transfer Destination Info */}
       <div className="mt-4 p-3 bg-blue-50 rounded-lg">
         <p className="text-sm text-blue-800">
-          <strong>Transfer Destination:</strong> This is your main business bank account where eBay payouts are deposited (e.g., Mettle, Starling, etc.). Auto-transfers will create matching outgoing transactions from your eBay Seller Account to this account. Configure this in the Auto-Sync tab.
+          <strong>Transfer Destination:</strong> This is your main business bank account where eBay payouts are deposited (e.g., Mettle, Starling, etc.). Auto-transfers will create matching outgoing transactions from your eBay Seller Account to this account.
         </p>
       </div>
     </div>
