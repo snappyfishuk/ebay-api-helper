@@ -123,8 +123,9 @@ export class FreeAgentApiService {
   }
 
   /**
-   * Get available bank accounts from FreeAgent
-   * ✅ FIXED: Now properly implemented to fetch ALL bank accounts
+   * Create new eBay account in FreeAgent
+   * IMPORTANT: Only creates if no existing eBay accounts found
+   * FIXED: Now includes required confirmCreate parameter
    */
   async getBankAccounts(): Promise<ApiResponse<{ bankAccounts: FreeAgentBankAccount[] }>> {
     console.log("🏦 Fetching all bank accounts from FreeAgent...");
