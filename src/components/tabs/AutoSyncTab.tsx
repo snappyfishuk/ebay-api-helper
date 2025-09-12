@@ -129,7 +129,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     }
   };
 
-  // ADD: Save transfer settings
+  // ADD: Save transfer settings with missing endpoint handling
   const saveTransferSettings = async () => {
     setSaving(true);
     try {
@@ -145,7 +145,12 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
       }
     } catch (error) {
       console.error('Error saving transfer settings:', error);
-      showMsg('error', 'Network error - please try again');
+      // Handle missing endpoint
+      if (error.message.includes('500') || error.message.includes('404')) {
+        showMsg('info', 'Transfer settings endpoint not yet implemented. Backend setup required.');
+      } else {
+        showMsg('error', 'Network error - please try again');
+      }
     } finally {
       setSaving(false);
     }
