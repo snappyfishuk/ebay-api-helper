@@ -1,5 +1,5 @@
 // hooks/useFreeAgentConnection.ts - FIXED WITH WORKING TRANSFER DESTINATION SAVE
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { 
   FreeAgentConnection, 
   EbayAccountStatus, 
@@ -52,7 +52,8 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const apiService = new FreeAgentApiService();
+  // Create stable API service instance
+  const apiService = useMemo(() => new FreeAgentApiService(), []);
 
   const checkConnection = useCallback(async () => {
     try {
@@ -62,7 +63,7 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
       console.error('Error checking FreeAgent connection:', err);
       setError('Failed to check FreeAgent connection status');
     }
-  }, []);
+  }, [apiService]);
 
   const loadBankAccounts = useCallback(async () => {
     try {
@@ -73,20 +74,20 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     } catch (err) {
       console.error('Error loading bank accounts:', err);
     }
-  }, []);
+  }, [apiService]);
 
-  // NEW: Load transfer settings from backend
+  // Load transfer settings from backend
   const loadTransferSettings = useCallback(async () => {
     try {
-      console.log('🔄 Loading transfer settings from backend...');
+      console.log('Loading transfer settings from backend...');
       const response = await makeAuthenticatedRequest('/autosync/transfer-settings');
       
       if (response.status === 'success' && response.data) {
-        console.log('📦 Transfer settings full response:', response.data);
+        console.log('Transfer settings full response:', response.data);
         
-        // FIXED: Use correct property path based on backend structure
+        // Use correct property path based on backend structure
         const mainAccount = response.data.accounts?.mainAccount;
-        console.log('📦 Main account data:', mainAccount);
+        console.log('Main account data:', mainAccount);
         
         if (mainAccount?.configured && mainAccount?.id) {
           setTransferDestination({
@@ -94,10 +95,10 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
             accountUrl: mainAccount.id,
             accountName: mainAccount.name || 'Main Business Account',
           });
-          console.log('✅ Transfer destination loaded from backend:', mainAccount.name);
+          console.log('Transfer destination loaded from backend:', mainAccount.name);
         } else {
-          console.log('ℹ️ No transfer destination configured on backend');
-          console.log('📊 Debug info:', {
+          console.log('No transfer destination configured on backend');
+          console.log('Debug info:', {
             hasAccounts: !!response.data.accounts,
             hasMainAccount: !!response.data.accounts?.mainAccount,
             mainAccountConfigured: response.data.accounts?.mainAccount?.configured,
@@ -106,7 +107,7 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
         }
       }
     } catch (err) {
-      console.error('⚠️ Error loading transfer settings:', err);
+      console.error('Error loading transfer settings:', err);
       // Don't set error state for this, as it's optional functionality
     }
   }, []);
@@ -124,7 +125,7 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
         });
 
         if (response.data.availableEbayAccounts) {
-          console.log('🔍 Available eBay accounts loaded:', response.data.availableEbayAccounts);
+          console.log('Available eBay accounts loaded:', response.data.availableEbayAccounts);
           setAvailableEbayAccounts(response.data.availableEbayAccounts);
         }
       }
@@ -132,7 +133,7 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
       console.error('Error checking eBay account status:', err);
       setError('Failed to check eBay account status');
     }
-  }, []);
+  }, [apiService]);
 
   const createEbayAccount = useCallback(async () => {
     try {
@@ -153,15 +154,15 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, [checkEbayAccountStatus]);
+  }, [apiService, checkEbayAccountStatus]);
 
-  // FIXED: Working account selection with proper debugging
+  // Working account selection with proper debugging
   const selectExistingEbayAccount = useCallback(async (accountUrl: string) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      console.log('🔄 Selecting eBay account with URL:', accountUrl);
+      console.log('Selecting eBay account with URL:', accountUrl);
       
       const response = await makeAuthenticatedRequest('/freeagent/select-ebay-account', {
         method: 'POST',
@@ -169,7 +170,7 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
       });
 
       if (response.status === 'success') {
-        console.log('✅ eBay account selection saved to backend');
+        console.log('eBay account selection saved to backend');
         
         const selectedAccount = availableEbayAccounts.find(acc => 
           acc.id === accountUrl || acc.apiUrl === accountUrl
@@ -195,13 +196,13 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     }
   }, [availableEbayAccounts]);
 
-  // FIXED: Use existing auto-sync transfer settings endpoint
+  // Use existing auto-sync transfer settings endpoint
   const selectTransferDestination = useCallback(async (accountUrl: string, accountName: string) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      console.log('🔄 Saving transfer destination via auto-sync settings:', accountName, accountUrl);
+      console.log('Saving transfer destination via auto-sync settings:', accountName, accountUrl);
       
       // Use the existing auto-sync transfer settings endpoint
       const response = await makeAuthenticatedRequest('/autosync/transfer-settings', {
@@ -210,12 +211,12 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
           autoTransferEnabled: false, // Just save destination, don't enable auto-transfer
           mainBankAccount: accountUrl,
           mainBankAccountName: accountName,
-          minimumAmount: 1 // Default values to satisfy validation
+          minimumAmount: 1 // Fixed: Changed from 0 to 1 to satisfy validation
         })
       });
 
       if (response.status === 'success') {
-        console.log('✅ Transfer destination saved to backend via auto-sync settings');
+        console.log('Transfer destination saved to backend via auto-sync settings');
         
         // Update local state
         setTransferDestination({
@@ -224,18 +225,18 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
           accountName: accountName,
         });
       } else {
-        console.log('⚠️ Backend save failed:', response);
+        console.log('Backend save failed:', response);
         // Still update local state for immediate UI feedback
         setTransferDestination({
           configured: true,
           accountUrl: accountUrl,
           accountName: accountName,
         });
-        console.log('ℹ️ Updated local state anyway');
+        console.log('Updated local state anyway');
       }
       
     } catch (err) {
-      console.error('❌ Transfer destination save failed:', err);
+      console.error('Transfer destination save failed:', err);
       
       // Still update local state for immediate UI feedback
       setTransferDestination({
@@ -245,7 +246,7 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
       });
       
       // Don't show error to user since local state still works
-      console.log('ℹ️ Updated local state despite backend error');
+      console.log('Updated local state despite backend error');
     } finally {
       setIsLoading(false);
     }
@@ -270,7 +271,7 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [apiService]);
 
   const disconnect = useCallback(async () => {
     try {
@@ -294,15 +295,16 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
       console.error('FreeAgent disconnect error:', err);
       setError('Error disconnecting from FreeAgent');
     }
-  }, []);
+  }, [apiService]);
 
-useEffect(() => {
-  if (connection.isConnected) {
-    checkEbayAccountStatus();
-    loadBankAccounts();
-    loadTransferSettings(); // Add this back - needed for transfer destination persistence
-  }
-}, [connection.isConnected]);
+  // Fixed useEffect with all dependencies
+  useEffect(() => {
+    if (connection.isConnected) {
+      checkEbayAccountStatus();
+      loadBankAccounts();
+      loadTransferSettings();
+    }
+  }, [connection.isConnected, checkEbayAccountStatus, loadBankAccounts, loadTransferSettings]);
 
   return {
     connection,

@@ -1,6 +1,5 @@
 // EbayApiAccountingHelper.tsx - Clean & Modular
 import React, { useState, useEffect, useRef } from "react";
-// NEW (works without index.ts):
 import { useEbayConnection } from "./hooks/useEbayConnection";
 import { useFreeAgentConnection } from "./hooks/useFreeAgentConnection";
 import { useTransactions } from "./hooks/useTransactions";
@@ -11,15 +10,13 @@ import { TrialAlert } from "./components/TrialAlert";
 import { DashboardTab } from "./components/tabs/DashboardTab";
 import { AutoSyncTab } from "./components/tabs/AutoSyncTab";
 import { ImportTab } from "./components/tabs/ImportTab";
-import { TransactionsTab } from "./components/tabs/TransactionsTab";
-import { FreeAgentEntriesTab } from "./components/tabs/FreeAgentEntriesTab";
 import SettingsTab from "./components/tabs/SettingsTab";
 
 interface EbayApiAccountingHelperProps {
   user: User;
 }
 
-type NavigationId = 'dashboard' | 'autosync' | 'manual' | 'history' | 'settings';
+type NavigationId = 'dashboard' | 'autosync' | 'manual' | 'settings';
 
 const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user }) => {
   const [activeNav, setActiveNav] = useState<NavigationId>("dashboard");
@@ -41,7 +38,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
   // Error aggregation
   const error = ebayConnection.error || freeagentConnection.error || transactionsManager.error;
 
-// Initialize connections on mount - FIXED to prevent infinite API calls
+  // Initialize connections on mount - FIXED to prevent infinite API calls
   useEffect(() => {
     if (user && !hasInitialized.current) {
       hasInitialized.current = true;
@@ -59,7 +56,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
         ebayUserId: user?.ebayConnection?.userId
       });
     }
-  }, [user?.id]); // FIXED: Only depend on user.id
+  }, [user?.id, ebayConnection, freeagentConnection]); // FIXED: Added missing dependencies
 
   // Handle FreeAgent OAuth callback and trigger eBay account check
   useEffect(() => {
@@ -75,15 +72,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
       // Clean the URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [freeagentConnection]);
-
-  // Use correct property name from SetupStatus type
-  useEffect(() => {
-    if (!setupStatus.ebayAccountReady && freeagentConnection.connection.isConnected) {
-      console.log("eBay account needed - user should create one");
-      // The existing UI will show the bank account setup in ConnectionStatusCards
-    }
-  }, [setupStatus.ebayAccountReady, freeagentConnection.connection.isConnected]);
+  }, [freeagentConnection, user]);
 
   // Navigation content renderer
   const renderContent = () => {
@@ -129,12 +118,14 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Manual Sync CSV</h3>
-              <p className="text-gray-600 text-sm">Manual sync tools, troubleshooting, and CSV export</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Manual Sync & Transaction History</h3>
+              <p className="text-gray-600 text-sm">Manual sync tools, transaction history, troubleshooting, and CSV export</p>
             </div>
             
             <ImportTab
-              {...commonProps}
+              connections={connections}
+              setupStatus={setupStatus}
+              ebayAccountStatus={freeagentConnection.ebayAccountStatus}
               selectedDateRange={transactionsManager.selectedDateRange}
               onStartDateChange={transactionsManager.handleStartDateChange}
               onEndDateChange={transactionsManager.handleEndDateChange}
@@ -144,40 +135,9 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
               onExportCsv={transactionsManager.exportToCsv}
               processedData={transactionsManager.processedData}
               syncStatus={transactionsManager.syncStatus}
+              isLoading={commonProps.isLoading}
+              transactions={transactionsManager.transactions}
             />
-          </div>
-        );
-        
-      case 'history':
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Transaction History</h3>
-              <p className="text-gray-600 text-sm">View eBay transactions and FreeAgent entries</p>
-            </div>
-            
-            {/* eBay Transactions */}
-            <div className="bg-white border rounded-lg">
-              <div className="p-4 border-b bg-gray-50">
-                <h4 className="text-md font-semibold text-gray-900">eBay Transactions</h4>
-              </div>
-              <div className="max-h-96 overflow-y-auto">
-                <TransactionsTab transactions={transactionsManager.transactions} />
-              </div>
-            </div>
-            
-            {/* FreeAgent Entries */}
-            <div className="bg-white border rounded-lg">
-              <div className="p-4 border-b bg-gray-50">
-                <h4 className="text-md font-semibold text-gray-900">FreeAgent Entries</h4>
-              </div>
-              <div className="max-h-96 overflow-y-auto">
-                <FreeAgentEntriesTab
-                  processedData={transactionsManager.processedData}
-                  ebayAccountStatus={freeagentConnection.ebayAccountStatus}
-                />
-              </div>
-            </div>
           </div>
         );
 
@@ -231,8 +191,7 @@ const EbayApiAccountingHelper: React.FC<EbayApiAccountingHelperProps> = ({ user 
             {[
               { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
               { id: 'autosync', label: 'Auto-Sync', icon: '⚡' },
-              { id: 'manual', label: 'Manual-Sync', icon: '🔧' },
-              { id: 'history', label: 'Transaction History', icon: '📊' },
+              { id: 'manual', label: 'Manual Sync & History', icon: '🔧' },
               { id: 'settings', label: 'Settings', icon: '⚙️' },
             ].map((nav) => (
               <button

@@ -10,6 +10,7 @@ import { EbayApiService } from '../services/EbayApiService';
 import { FreeAgentApiService } from '../services/FreeAgentApiService';
 import { TransactionService } from '../services/TransactionService';
 import { ValidationService } from '../services/ValidationService';
+import { makeAuthenticatedRequest } from '../utils/apiUtils';
 
 interface UseTransactionsReturn {
   transactions: EbayTransaction[];
@@ -50,7 +51,7 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
     freeagentService: new FreeAgentApiService(),
     transactionService: new TransactionService(),
     validationService: new ValidationService(),
-  }), []); // Empty dependency array means these are created once
+  }), []);
 
   const fetchTransactions = useCallback(async () => {
     if (!isEbayConnected) {
@@ -73,56 +74,62 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
     setError(null);
 
     try {
-      console.log(`Fetching ALL transactions from ${selectedDateRange.startDate} to ${selectedDateRange.endDate}`);
+      console.log(`🚀 Fetching ALL transactions from ${selectedDateRange.startDate} to ${selectedDateRange.endDate} - NO LIMITS`);
       
-      // UPDATED: Pass fetchAll flag to get all transactions (no limits)
-      const response = await services.ebayService.fetchTransactions({
-        ...selectedDateRange,
-        fetchAll: true, // This triggers pagination on backend
-        respectDateRange: true
-      });
-      
-      if (response.data) {
+      // UPDATED: Direct API call with fetchAll=true to bypass any service limitations
+      const response = await makeAuthenticatedRequest(
+        `/ebay/transactions?startDate=${selectedDateRange.startDate}&endDate=${selectedDateRange.endDate}&fetchAll=true`,
+        {
+          method: 'GET',
+        }
+      );
+
+      if (response.status === 'success') {
         const txns = response.data.transactions || [];
         setTransactions(txns);
         
-        // DEBUG: Check for exactly 100 transactions (indicates possible limit issue)
-        if (txns.length === 100) {
-          console.warn('EXACTLY 100 transactions received - check if pagination is working!');
-          console.log('Response data:', response.data);
-        } else {
-          console.log(`Received ${txns.length} transactions (pagination working)`);
+        // Enhanced success logging
+        console.log(`✅ Success: Fetched ${txns.length} transactions`);
+        console.log(`📊 Fetch mode: ${response.data.fetchMode || 'unknown'}`);
+        console.log(`🔓 Limits removed: ${response.data.limitRemoved || false}`);
+        console.log(`📄 Pages fetched: ${response.data.pagesFetched || 1}`);
+        
+        if (response.data.fetchMode === 'ALL_TRANSACTIONS') {
+          console.log('🎉 SUCCESS: Using unlimited transaction fetching!');
         }
         
-        // Process transactions for FreeAgent
+        // Process transactions for FreeAgent using the service
         const processed = services.transactionService.processTransactionsForFreeAgent(txns);
         setProcessedData(processed);
         
-        // ENHANCED: Show if limits were removed
+        // Calculate date span for user feedback
+        const startDate = new Date(selectedDateRange.startDate);
+        const endDate = new Date(selectedDateRange.endDate);
+        const daySpan = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        // Enhanced status message with unlimited info
         const statusMessage = response.data.limitRemoved 
-          ? `Fetched ALL ${txns.length} transactions from eBay ${response.data.environment || 'production'} (no limits)`
-          : `Fetched ${txns.length} transactions from eBay ${response.data.environment || 'production'}`;
+          ? `✅ Fetched ALL ${txns.length} transactions across ${daySpan} days - No 90-day restriction!`
+          : `Fetched ${txns.length} transactions from ${daySpan} days of eBay data`;
         
         setSyncStatus(statusMessage);
 
-        console.log(`Processed data:`, {
-          total: processed.freeAgentEntries.length,
+        console.log(`📈 Processed summary:`, {
+          totalTransactions: txns.length,
+          freeAgentEntries: processed.freeAgentEntries.length,
           credits: processed.creditCount,
           debits: processed.debitCount,
           totalAmount: processed.totalAmount,
           netAmount: processed.netAmount,
-          limitRemoved: response.data.limitRemoved || false,
-          fetchMode: response.data.fetchMode || 'unknown',
+          dateSpan: daySpan,
+          unlimited: response.data.limitRemoved || false,
         });
-        
-        // Additional validation logging
-        if (response.data.pagesFetched) {
-          console.log(`Pagination stats: ${response.data.pagesFetched} pages fetched`);
-        }
+      } else {
+        throw new Error(response.message || 'Failed to fetch transactions');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch transactions';
-      console.error('Transaction fetch error:', err);
+      console.error('❌ Transaction fetch error:', err);
       setError(message);
       setSyncStatus(null);
     } finally {
@@ -166,10 +173,11 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
         bankAccountId: bankAccountId,
       };
 
+      console.log(`🔄 Syncing ${syncData.transactions.length} transactions to FreeAgent...`);
       const response = await services.freeagentService.uploadEbayStatement(syncData);
       
-      // Fix: Safely access response properties
       const uploadedCount = response?.data?.uploadedCount || processedData.freeAgentEntries.length;
+      console.log(`✅ Successfully synced ${uploadedCount} transactions to FreeAgent`);
 
       setSyncStatus(
         `Statement upload successful! ${uploadedCount} transactions uploaded to ${
@@ -180,7 +188,7 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
       setProcessedData(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sync failed';
-      console.error('Statement upload error:', err);
+      console.error('❌ Statement upload error:', err);
       setError(message);
       setSyncStatus(null);
     } finally {
@@ -190,14 +198,21 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
 
   const exportToCsv = useCallback(() => {
     if (processedData) {
+      console.log(`📁 Exporting ${processedData.freeAgentEntries.length} transactions to CSV...`);
       services.transactionService.exportToCsv(processedData);
     }
   }, [processedData, services]);
 
   const setDatePreset = useCallback((days: number) => {
+    console.log(`📅 Setting date preset: ${days} days back`);
     const newRange = services.validationService.createDatePreset(days);
     setSelectedDateRange(newRange);
     setError(null);
+    
+    // Clear existing data when changing date range
+    setTransactions([]);
+    setProcessedData(null);
+    setSyncStatus(null);
   }, [services]);
 
   const handleStartDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -214,6 +229,11 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
 
     setError(null);
     setSelectedDateRange(prev => ({ ...prev, startDate: newStartDate }));
+    
+    // Clear existing data when changing date range
+    setTransactions([]);
+    setProcessedData(null);
+    setSyncStatus(null);
   }, [selectedDateRange.endDate, services]);
 
   const handleEndDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -230,6 +250,11 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
 
     setError(null);
     setSelectedDateRange(prev => ({ ...prev, endDate: newEndDate }));
+    
+    // Clear existing data when changing date range
+    setTransactions([]);
+    setProcessedData(null);
+    setSyncStatus(null);
   }, [selectedDateRange.startDate, services]);
 
   return {
