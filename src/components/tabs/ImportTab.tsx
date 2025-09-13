@@ -78,9 +78,7 @@ export const ImportTab: React.FC<ImportTabProps> = ({
             Manual Sync - No Limits
           </h3>
           <p className="text-sm text-gray-600 mb-6">
-            Fetch eBay transactions for any date range and export to CSV or sync directly to FreeAgent.
-            <span className="font-medium text-green-600 ml-1">No 90-day restriction!</span>
-          </p>
+            Fetch eBay transactions for any date range and export to CSV or sync directly to FreeAgent.</p>
 
           <div className="flex flex-wrap gap-2 mb-4">
             <button

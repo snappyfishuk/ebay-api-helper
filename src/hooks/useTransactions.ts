@@ -109,7 +109,7 @@ export const useTransactions = (isEbayConnected: boolean): UseTransactionsReturn
         
         // Enhanced status message with unlimited info
         const statusMessage = response.data.limitRemoved 
-          ? `✅ Fetched ALL ${txns.length} transactions across ${daySpan} days - No 90-day restriction!`
+          ? `✅ Fetched ALL ${txns.length} transactions across ${daySpan} days`
           : `Fetched ${txns.length} transactions from ${daySpan} days of eBay data`;
         
         setSyncStatus(statusMessage);
