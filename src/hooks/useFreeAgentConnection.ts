@@ -296,13 +296,12 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     }
   }, []);
 
-  useEffect(() => {
-    if (connection.isConnected) {
-      checkEbayAccountStatus();
-      loadBankAccounts();
-      loadTransferSettings(); // Load saved transfer settings
-    }
-  }, [connection.isConnected]);
+useEffect(() => {
+  if (connection.isConnected) {
+    checkEbayAccountStatus();
+    loadBankAccounts();
+  }
+}, [connection.isConnected]);
 
   return {
     connection,
