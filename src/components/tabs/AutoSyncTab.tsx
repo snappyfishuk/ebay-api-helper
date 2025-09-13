@@ -29,7 +29,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
   const [msgText, setMsgText] = useState('');
   const [msgType, setMsgType] = useState('');
 
-  // Helper to show messages (memoized to prevent dependency issues)
+  // Helper to show messages
   const showMsg = useCallback((type: string, text: string) => {
     setMsgType(type);
     setMsgText(text);
@@ -107,7 +107,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     showMsg('info', `Transaction lag set to ${newLagDays} day${newLagDays > 1 ? 's' : ''}. Click "Save Settings" to apply.`);
   };
 
-  // Fixed save settings function - no parameters needed
+  // Save settings function
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
@@ -176,8 +176,6 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
       setSaving(false);
     }
   };
-
-  const readyToSync = setupStatus.readyToSync;
 
   if (!setupStatus.readyToSync) {
     return (
