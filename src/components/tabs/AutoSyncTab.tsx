@@ -29,6 +29,12 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
   const [msgText, setMsgText] = useState('');
   const [msgType, setMsgType] = useState('');
 
+  // Helper to show messages (memoized to prevent dependency issues)
+  const showMsg = useCallback((type: string, text: string) => {
+    setMsgType(type);
+    setMsgText(text);
+  }, []);
+
   // Auto-clear messages after 5 seconds
   useEffect(() => {
     if (msgText) {
@@ -54,12 +60,6 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     setInitialSyncDate(thirtyDaysAgo.toISOString().split('T')[0]);
   }, []);
-
-  // Helper to show messages
-  const showMsg = (type: string, text: string) => {
-    setMsgType(type);
-    setMsgText(text);
-  };
 
   // Calculate date range limits
   const getMaxDate = () => {
@@ -107,15 +107,15 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     showMsg('info', `Transaction lag set to ${newLagDays} day${newLagDays > 1 ? 's' : ''}. Click "Save Settings" to apply.`);
   };
 
-  // Save settings function
-  const saveSettings = async (customLagDays?: number) => {
+  // Fixed save settings function - no parameters needed
+  const handleSaveSettings = async () => {
     setSaving(true);
     try {
       const response = await makeAuthenticatedRequest('/autosync/settings', {
         method: 'PUT',
         body: JSON.stringify({
           enabled: autoSyncEnabled,
-          lagDays: customLagDays || lagDays
+          lagDays: lagDays
         })
       });
       
@@ -133,7 +133,7 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
   };
 
   // Test sync with custom date range
-  const testSync = async () => {
+  const handleTestSync = async () => {
     if (!setupStatus.readyToSync) {
       showMsg('error', 'Please complete setup (connect accounts and select eBay seller account) before testing');
       return;
@@ -143,29 +143,55 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
     setSyncResults(null);
     
     try {
-      const response = await makeAuthenticatedRequest('/autosync/test-now', {
-        method: 'POST',
-        body: JSON.stringify({
+      // Calculate end date (today minus lag days)
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() - lagDays);
+      
+      // Build request body with optional date range
+      const requestBody: any = {};
+      if (showDateRange && initialSyncDate) {
+        requestBody.dateRange = {
           startDate: initialSyncDate,
-          lagDays: lagDays
-        })
+          endDate: endDate.toISOString().split('T')[0]
+        };
+      }
+
+      const response = await makeAuthenticatedRequest('/autosync/test', {
+        method: 'POST',
+        body: JSON.stringify(requestBody)
       });
 
       if (response.status === 'success') {
         setSyncResults(response.data);
-        showMsg('success', `Test completed: ${response.data?.result?.successful || 0} transactions processed`);
+        const transactions = response.data?.successful || response.data?.totalTransactions || 0;
+        showMsg('success', `Test sync completed! Synced ${transactions} transactions.`);
       } else {
-        showMsg('error', response.message || 'Test sync failed');
+        console.error('Test failed:', response);
+        showMsg('error', 'Test sync failed - check console for details');
       }
     } catch (error) {
       console.error('Test sync error:', error);
-      showMsg('error', 'Test sync failed - please try again');
+      showMsg('error', 'Network error during test - please try again');
     } finally {
       setSaving(false);
     }
   };
 
   const readyToSync = setupStatus.readyToSync;
+
+  if (!setupStatus.readyToSync) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+        <div className="text-center">
+          <div className="text-2xl mb-2">⚠️</div>
+          <h4 className="text-lg font-semibold text-yellow-800 mb-2">Setup Required</h4>
+          <p className="text-yellow-700 text-sm mb-4">
+            Complete your eBay and FreeAgent connections to enable auto-sync.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -180,140 +206,219 @@ export const AutoSyncTab: React.FC<AutoSyncTabProps> = ({
         </div>
       )}
 
-      {/* Setup Status Alert */}
-      {!readyToSync && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="text-yellow-800 text-sm">
-            <strong>Setup Required:</strong> Complete account connections in the Connection Status section above before enabling auto-sync.
-          </div>
-        </div>
-      )}
-
-      {/* Auto-Sync Toggle */}
+      {/* Auto-Sync Toggle & Configuration */}
       <div className="bg-white border rounded-lg p-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between mb-6">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Automated Daily Sync</h3>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Automated Daily Sync
+            </h3>
             <p className="text-sm text-gray-600 mt-1">
               Automatically sync your eBay transactions to FreeAgent every day at 2:00 AM UK time
             </p>
           </div>
           <button
             onClick={handleToggleAutoSync}
-            disabled={saving || !readyToSync}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+            disabled={saving}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
               autoSyncEnabled ? 'bg-blue-600' : 'bg-gray-200'
             }`}
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                autoSyncEnabled ? 'translate-x-6' : 'translate-x-1'
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                autoSyncEnabled ? 'translate-x-5' : 'translate-x-0'
               }`}
             />
           </button>
         </div>
-      </div>
 
-      {/* Transaction Lag Settings */}
-      <div className="bg-white border rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Transaction Lag (Days)</h3>
-        <p className="text-sm text-gray-600 mb-4">
-          How many days to wait before syncing transactions (allows time for eBay to finalize payments)
-        </p>
-        
-        <div className="grid grid-cols-4 gap-2">
-          {[1, 2, 3, 4].map((days) => (
-            <button
-              key={days}
-              onClick={() => updateLagDays(days)}
-              className={`px-4 py-2 text-sm font-medium rounded transition-colors ${
-                lagDays === days
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {days} day{days > 1 ? 's' : ''}
-            </button>
-          ))}
-        </div>
-        
-        <p className="text-xs text-gray-500 mt-2">
-          Recommended: 2 days (balances accuracy with speed)
-        </p>
-      </div>
-
-      {/* Custom Date Range for Testing */}
-      <div className="bg-white border rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Custom Date Range for Testing</h3>
-        <p className="text-sm text-gray-600 mb-4">
-          Choose how far back to sync when testing (useful for initial setup)
-        </p>
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Start Date for Testing
-            </label>
-            <input
-              type="date"
-              value={initialSyncDate}
-              onChange={(e) => setInitialSyncDate(e.target.value)}
-              min={getMinDate()}
-              max={getMaxDate()}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          
-          {syncResults && (
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2">Last Test Results:</h4>
-              <div className="text-sm text-gray-600 space-y-1">
-                <div>Date Range: {syncResults.dateRange?.startDate} to {syncResults.dateRange?.endDate}</div>
-                <div>Transactions: {syncResults.result?.successful || 0} processed</div>
-                <div>Duration: {Math.round((syncResults.result?.duration || 0) / 1000)}s</div>
+        {autoSyncEnabled && (
+          <div className="space-y-6">
+            {/* Transaction Lag Configuration */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Transaction Lag (Days)
+              </label>
+              <p className="text-xs text-gray-500 mb-3">
+                How many days to wait before syncing transactions (allows time for eBay to finalize payments)
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {[1, 2, 3, 4].map((days) => (
+                  <button
+                    key={days}
+                    onClick={() => updateLagDays(days)}
+                    className={`py-2 px-3 text-sm font-medium rounded border transition-colors ${
+                      lagDays === days
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {days} day{days > 1 ? 's' : ''}
+                  </button>
+                ))}
               </div>
+              <p className="text-xs text-gray-500 mt-2">Recommended: 2 days (balances accuracy with speed)</p>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Action Buttons */}
-      <div className="flex space-x-4">
-        <button
-          onClick={saveSettings}
-          disabled={saving}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {saving ? 'Saving...' : 'Save Settings'}
-        </button>
-        
-        <button
-          onClick={testSync}
-          disabled={saving || !readyToSync}
-          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {saving ? 'Testing...' : 'Test Now'}
-        </button>
+            {/* Date Range Selection for Testing */}
+            <div className="border-t pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Custom Date Range for Testing
+                  </label>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Choose how far back to sync when testing (useful for initial setup)
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowDateRange(!showDateRange)}
+                  className={`text-sm px-3 py-1 rounded border transition-colors ${
+                    showDateRange 
+                      ? 'bg-blue-50 text-blue-700 border-blue-300' 
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {showDateRange ? 'Hide' : 'Show'} Date Range
+                </button>
+              </div>
+
+              {showDateRange && (
+                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Sync transactions from:
+                    </label>
+                    <input
+                      type="date"
+                      value={initialSyncDate}
+                      onChange={(e) => setInitialSyncDate(e.target.value)}
+                      min={getMinDate()}
+                      max={getMaxDate()}
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    <div>
+                      <strong>Date range:</strong> {new Date(initialSyncDate).toLocaleDateString('en-GB')} to {new Date(getMaxDate()).toLocaleDateString('en-GB')}
+                    </div>
+                    <div>
+                      <strong>Total days:</strong> {Math.ceil((new Date(getMaxDate()).getTime() - new Date(initialSyncDate).getTime()) / (1000 * 60 * 60 * 24))} days
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex space-x-4">
+              <button
+                onClick={handleSaveSettings}
+                disabled={saving}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving ? 'Saving...' : 'Save Settings'}
+              </button>
+              <button
+                onClick={handleTestSync}
+                disabled={saving}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving ? 'Testing...' : 'Test Now'}
+              </button>
+            </div>
+
+            {/* Sync Results Display */}
+            {syncResults && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-blue-900 mb-2">Test Results</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-blue-700">Total Transactions:</span>
+                    <span className="ml-2 font-semibold text-blue-900">{syncResults.totalTransactions || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700">Successful:</span>
+                    <span className="ml-2 font-semibold text-green-700">{syncResults.successful || 0}</span>
+                  </div>
+                  {syncResults.dateRange && (
+                    <>
+                      <div>
+                        <span className="text-blue-700">Period:</span>
+                        <span className="ml-2 font-semibold text-blue-900">{syncResults.dateRange.daySpan || 0} days</span>
+                      </div>
+                      <div>
+                        <span className="text-blue-700">Duration:</span>
+                        <span className="ml-2 font-semibold text-blue-900">
+                          {syncResults.duration ? `${(syncResults.duration / 1000).toFixed(1)}s` : 'N/A'}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Sync Status & Statistics */}
       <div className="bg-white border rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Sync Status & Statistics</h3>
-        
+        <h4 className="text-md font-semibold text-gray-900 mb-4">Sync Status & Statistics</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h4 className="font-medium text-gray-900 mb-2">Schedule</h4>
-            <div className="text-sm text-gray-600 space-y-1">
-              <div>Next sync: <span className="font-medium">14 Sept 2025, 02:00</span></div>
-              <div>Last sync: <span className="font-medium">11 Sept 2025, 02:00</span></div>
+            <div className="text-sm font-medium text-gray-700 mb-2">Schedule</div>
+            <div className="space-y-1 text-sm">
+              <div>
+                <span className="text-gray-600">Next sync:</span>{' '}
+                <span className="font-medium">
+                  {user?.autoSync?.nextScheduledSync ? (
+                    new Date(user.autoSync.nextScheduledSync).toLocaleString('en-GB', {
+                      timeZone: 'Europe/London',
+                      dateStyle: 'medium',
+                      timeStyle: 'short'
+                    })
+                  ) : (
+                    <span className="text-gray-500">Not scheduled</span>
+                  )}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-600">Last sync:</span>{' '}
+                <span className="font-medium">
+                  {user?.autoSync?.lastAutoSync ? (
+                    new Date(user.autoSync.lastAutoSync).toLocaleString('en-GB', {
+                      timeZone: 'Europe/London',
+                      dateStyle: 'medium',
+                      timeStyle: 'short'
+                    })
+                  ) : (
+                    <span className="text-gray-500">No syncs yet</span>
+                  )}
+                </span>
+              </div>
             </div>
           </div>
           
           <div>
-            <h4 className="font-medium text-gray-900 mb-2">Performance</h4>
-            <div className="text-sm text-gray-600 space-y-1">
-              <div>Success rate: <span className="font-medium text-green-600">94%</span></div>
-              <div>Total auto-syncs: <span className="font-medium">17</span></div>
+            <div className="text-sm font-medium text-gray-700 mb-2">Performance</div>
+            <div className="space-y-1 text-sm">
+              <div>
+                <span className="text-gray-600">Success rate:</span>{' '}
+                <span className="font-medium">
+                  {user?.autoSync?.stats?.successfulAutoSyncs && user?.autoSync?.stats?.totalAutoSyncs ? (
+                    `${Math.round((user.autoSync.stats.successfulAutoSyncs / user.autoSync.stats.totalAutoSyncs) * 100)}%`
+                  ) : (
+                    <span className="text-gray-500">No data</span>
+                  )}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-600">Total auto-syncs:</span>{' '}
+                <span className="font-medium">
+                  {user?.autoSync?.stats?.totalAutoSyncs || 0}
+                </span>
+              </div>
             </div>
           </div>
         </div>
