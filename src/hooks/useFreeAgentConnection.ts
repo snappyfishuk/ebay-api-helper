@@ -1,4 +1,4 @@
-// hooks/useFreeAgentConnection.ts - PROPERLY FIXED VERSION
+// hooks/useFreeAgentConnection.ts - DEBUG VERSION
 import { useState, useCallback, useEffect } from 'react';
 import { 
   FreeAgentConnection, 
@@ -51,7 +51,6 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // No constructor parameters needed - service now uses apiUtils internally
   const apiService = new FreeAgentApiService();
 
   const checkConnection = useCallback(async () => {
@@ -64,7 +63,6 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     }
   }, []);
 
-  // Load all bank accounts when connected
   const loadBankAccounts = useCallback(async () => {
     try {
       const response = await apiService.getBankAccounts();
@@ -76,7 +74,6 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     }
   }, []);
 
-  // FIXED: Remove checkEbayAccountStatus from dependencies
   const checkEbayAccountStatus = useCallback(async () => {
     try {
       const response = await apiService.checkEbayAccountStatus();
@@ -89,8 +86,8 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
           bankAccount: response.data.bankAccount,
         });
 
-        // CRITICAL: Store available eBay accounts for selection
         if (response.data.availableEbayAccounts) {
+          console.log('🔍 Available eBay accounts loaded:', response.data.availableEbayAccounts);
           setAvailableEbayAccounts(response.data.availableEbayAccounts);
         }
       }
@@ -98,7 +95,7 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
       console.error('Error checking eBay account status:', err);
       setError('Failed to check eBay account status');
     }
-  }, []); // FIXED: Empty dependency array
+  }, []);
 
   const createEbayAccount = useCallback(async () => {
     try {
@@ -108,7 +105,6 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
       const response = await apiService.createEbayAccount();
       
       if (response.status === 'success') {
-        // Refresh the eBay account status
         await checkEbayAccountStatus();
       } else {
         throw new Error(response.message || 'Failed to create eBay account');
@@ -122,25 +118,60 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     }
   }, [checkEbayAccountStatus]);
 
-  // FIXED: Actually call the backend API to save the selection
+  // EXTENSIVE DEBUG VERSION
   const selectExistingEbayAccount = useCallback(async (accountUrl: string) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      console.log('🔄 Selecting eBay account:', accountUrl);
+      console.log('🚀 === ACCOUNT SELECTION DEBUG ===');
+      console.log('📥 Input accountUrl:', accountUrl);
+      console.log('📥 AccountUrl type:', typeof accountUrl);
+      console.log('📥 AccountUrl length:', accountUrl?.length);
+      console.log('📥 Is valid URL format?', /^https:\/\//.test(accountUrl));
       
-      // Call the backend API to save the selection
+      // Debug available accounts
+      console.log('📋 Available eBay accounts:');
+      availableEbayAccounts.forEach((acc, idx) => {
+        console.log(`  ${idx + 1}. Name: ${acc.name}`);
+        console.log(`     ID: ${acc.id}`);
+        console.log(`     ApiUrl: ${acc.apiUrl}`);
+        console.log(`     Match ID? ${acc.id === accountUrl}`);
+        console.log(`     Match ApiUrl? ${acc.apiUrl === accountUrl}`);
+      });
+
+      // Create the request payload
+      const payload = { accountUrl };
+      console.log('📤 Sending payload:', JSON.stringify(payload, null, 2));
+      
+      // Validate URL format before sending
+      try {
+        new URL(accountUrl);
+        console.log('✅ URL constructor validates the URL');
+      } catch (urlError) {
+        console.log('❌ URL constructor failed:', urlError.message);
+        throw new Error(`Invalid URL format: ${accountUrl}`);
+      }
+      
+      // Call the backend API
+      console.log('🌐 Making API call to /freeagent/select-ebay-account...');
+      
       const response = await makeAuthenticatedRequest('/freeagent/select-ebay-account', {
         method: 'POST',
-        body: JSON.stringify({ accountUrl })
+        body: JSON.stringify(payload)
       });
+
+      console.log('📨 Backend response:', response);
 
       if (response.status === 'success') {
         console.log('✅ eBay account selection saved to backend');
         
-        // Find the selected account from available accounts
-        const selectedAccount = availableEbayAccounts.find(acc => acc.url === accountUrl);
+        // Find account using correct properties
+        const selectedAccount = availableEbayAccounts.find(acc => 
+          acc.id === accountUrl || acc.apiUrl === accountUrl
+        );
+        
+        console.log('🔍 Found selected account:', selectedAccount);
         
         if (selectedAccount) {
           setEbayAccountStatus(prev => ({
@@ -149,20 +180,29 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
             bankAccount: selectedAccount,
             needsSetup: false,
           }));
+          console.log('✅ Local state updated');
+        } else {
+          console.log('⚠️ Could not find matching account in local state');
         }
       } else {
+        console.log('❌ Backend returned error:', response);
         throw new Error(response.message || 'Failed to save eBay account selection');
       }
     } catch (err) {
+      console.log('❌ ACCOUNT SELECTION FAILED');
+      console.log('❌ Error type:', typeof err);
+      console.log('❌ Error message:', err instanceof Error ? err.message : String(err));
+      console.log('❌ Full error:', err);
+      
       const message = err instanceof Error ? err.message : 'Error selecting eBay account';
       console.error('Select eBay account error:', err);
       setError(message);
     } finally {
       setIsLoading(false);
+      console.log('🏁 === END ACCOUNT SELECTION DEBUG ===');
     }
   }, [availableEbayAccounts]);
 
-  // NEW: Transfer destination selection with backend save
   const selectTransferDestination = useCallback(async (accountUrl: string, accountName: string) => {
     try {
       setIsLoading(true);
@@ -170,7 +210,6 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
       
       console.log('🔄 Selecting transfer destination:', accountName);
       
-      // Call the backend API to save transfer destination (this endpoint might need to be created)
       try {
         const response = await makeAuthenticatedRequest('/freeagent/transfer-destination', {
           method: 'POST',
@@ -185,10 +224,8 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
         }
       } catch (backendError) {
         console.warn('⚠️ Backend save failed, but updating local state:', backendError);
-        // Continue with local update even if backend fails
       }
       
-      // Update local state
       setTransferDestination({
         configured: true,
         accountUrl: accountUrl,
@@ -249,14 +286,12 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
     }
   }, []);
 
-  // FIXED: Auto-check eBay account status when FreeAgent connects
-  // REMOVED checkEbayAccountStatus from dependencies to prevent infinite loop
   useEffect(() => {
     if (connection.isConnected) {
       checkEbayAccountStatus();
       loadBankAccounts();
     }
-  }, [connection.isConnected]); // FIXED: Only depend on connection.isConnected
+  }, [connection.isConnected]);
 
   return {
     connection,
