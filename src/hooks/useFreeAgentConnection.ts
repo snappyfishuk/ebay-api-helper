@@ -82,22 +82,31 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
       const response = await makeAuthenticatedRequest('/autosync/transfer-settings');
       
       if (response.status === 'success' && response.data) {
-        console.log('📦 Transfer settings response:', response.data);
+        console.log('📦 Transfer settings full response:', response.data);
         
-        // Check if main bank account is configured
-        if (response.data.mainAccount?.configured && response.data.mainAccount?.id) {
+        // FIXED: Use correct property path based on backend structure
+        const mainAccount = response.data.accounts?.mainAccount;
+        console.log('📦 Main account data:', mainAccount);
+        
+        if (mainAccount?.configured && mainAccount?.id) {
           setTransferDestination({
             configured: true,
-            accountUrl: response.data.mainAccount.id,
-            accountName: response.data.mainAccount.name || 'Main Business Account',
+            accountUrl: mainAccount.id,
+            accountName: mainAccount.name || 'Main Business Account',
           });
-          console.log('✅ Transfer destination loaded from backend:', response.data.mainAccount.name);
+          console.log('✅ Transfer destination loaded from backend:', mainAccount.name);
         } else {
           console.log('ℹ️ No transfer destination configured on backend');
+          console.log('📊 Debug info:', {
+            hasAccounts: !!response.data.accounts,
+            hasMainAccount: !!response.data.accounts?.mainAccount,
+            mainAccountConfigured: response.data.accounts?.mainAccount?.configured,
+            mainAccountId: response.data.accounts?.mainAccount?.id
+          });
         }
       }
     } catch (err) {
-      console.error('⚠️ Error loading transfer settings (endpoint might not exist):', err);
+      console.error('⚠️ Error loading transfer settings:', err);
       // Don't set error state for this, as it's optional functionality
     }
   }, []);
