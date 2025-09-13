@@ -300,6 +300,7 @@ useEffect(() => {
   if (connection.isConnected) {
     checkEbayAccountStatus();
     loadBankAccounts();
+    loadTransferSettings(); // Add this back - needed for transfer destination persistence
   }
 }, [connection.isConnected]);
 
