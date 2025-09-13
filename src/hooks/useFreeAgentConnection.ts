@@ -210,7 +210,7 @@ export const useFreeAgentConnection = (): UseFreeAgentConnectionReturn => {
           autoTransferEnabled: false, // Just save destination, don't enable auto-transfer
           mainBankAccount: accountUrl,
           mainBankAccountName: accountName,
-          minimumAmount: 0 // Default values to satisfy validation
+          minimumAmount: 1 // Default values to satisfy validation
         })
       });
 
